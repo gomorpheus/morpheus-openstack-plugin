@@ -1,0 +1,179 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath "com.github.jengelman.gradle.plugins:shadow:6.0.0"
+        classpath "io.github.gradle-nexus:publish-plugin:1.0.0"
+	    classpath "com.bertramlabs.plugins:asset-pipeline-gradle:$assetPipelineVersion"
+    }
+}
+
+
+plugins {
+    id 'signing'
+}
+
+ext {
+    isBuildSnapshot = version.endsWith('-SNAPSHOT')
+    isReleaseVersion = !isBuildSnapshot
+}
+
+
+
+group = 'com.morpheusdata'
+
+apply plugin: 'java'
+apply plugin: 'groovy'
+apply plugin: 'idea'
+apply plugin: 'maven-publish'
+apply plugin: 'asset-pipeline'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+if (isReleaseVersion) {
+    apply plugin: "io.github.gradle-nexus.publish-plugin"
+    nexusPublishing {
+        repositories {
+            sonatype {
+                if(project.hasProperty('mavenMorpheusUser')) {
+                    username = mavenMorpheusUser
+                    password = mavenMorpheusPassword
+                }   
+            }
+        }
+    }
+} else {
+    publishing {
+        repositories {
+            maven {
+                url = "http://nexus.bertramlabs.com/content/repositories/snapshots"
+                if(project.hasProperty('labsNexusUser')) {
+                    credentials {
+                        username = labsNexusUser
+                        password = labsNexusPassword
+                    }
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+	compileOnly 'com.morpheusdata:morpheus-plugin-api:0.13.4-SNAPSHOT'
+	compileOnly "org.codehaus.groovy:groovy-all:$groovyVersion"
+    implementation 'commons-logging:commons-logging:1.1.1'
+    testImplementation "org.codehaus.groovy:groovy-all:$groovyVersion"
+    testImplementation "org.spockframework:spock-core:$spockVersion"
+	testImplementation 'com.morpheusdata:morpheus-plugin-api:0.13.2-SNAPSHOT'
+	testImplementation 'io.reactivex.rxjava2:rxjava:2.2.0'
+	testImplementation "org.slf4j:slf4j-nop:$slf4jVersion"
+	testImplementation "org.slf4j:slf4j-parent:$slf4jVersion"
+	testImplementation 'net.bytebuddy:byte-buddy:1.9.3'
+}
+
+configurations {
+
+}
+
+sourceSets {
+	main {
+		compileClasspath //+= configurations.provided
+	}
+}
+
+jar {
+	manifest {
+		attributes(
+				'Plugin-Class': 'com.morpheusdata.openstack.plugin.OpenstackPlugin',
+				'Plugin-Version': version
+		)
+	}
+}
+
+java {
+	withSourcesJar()
+	withJavadocJar()
+}
+
+//task morpheusJavaDoc(type: Javadoc) {
+//	source = sourceSets.main.allJava
+//	title = "Morpheus Core Docs"
+//}
+
+task(console, dependsOn: 'classes', type: JavaExec) {
+	main = 'groovy.ui.Console'
+	classpath = sourceSets.main.runtimeClasspath
+}
+
+publishing {
+	publications {
+		maven(MavenPublication) {
+			artifactId 'morpheus-openstack-plugin'
+			pom.withXml {
+				asNode().children().last() + {
+					resolveStrategy = Closure.DELEGATE_FIRST
+					name 'morpheus-openstack-plugin'
+					description 'Openstack Plugin'
+					url 'https://github.com/'
+					scm {
+						url 'https://github.com/bertramdev/morpheus-openstack-plugin'
+						connection 'scm:https://bertramdev@github.com/gomorpheus/morpheus-core.git'
+						developerConnection 'scm:git://github.com/gomorpheus/morpheus-core.git'
+					}
+					licenses {
+						license {
+							name 'The Apache Software License, Version 2.0'
+							url 'http://www.apache.org/license/LICENSE-2.0.txt'
+							distribution 'repo'
+						}
+					}
+					developers {
+						developer {
+							id 'bwhiton'
+							name 'Bob Whiton'
+							email 'bwhiton@morpheusdata.com'
+						}
+					}
+				}
+			}
+			from components.java
+		}
+	}
+	repositories {
+		maven {
+			if( !isReleaseVersion ) {
+				url = "http://nexus.bertramlabs.com/content/repositories/snapshots"
+				if(project.hasProperty('labsNexusUser')) {
+					credentials {
+						username = labsNexusUser
+						password = labsNexusPassword
+					}
+				}
+			}
+		}
+	}
+}
+
+test {
+    testLogging {
+        exceptionFormat = 'full'
+        showStandardStreams = true
+    }
+}
+
+//tasks.withType(JavaExec) {
+//    // Assign all Java system properties from
+//    // the command line to the JavaExec task.
+//    systemProperties System.properties
+//}
+
+tasks.assemble.dependsOn tasks.shadowJar

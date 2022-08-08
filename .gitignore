@@ -1,0 +1,11 @@
+build/
+.asscache
+.gradle/
+.idea
+*.ipr
+*.iml
+*.iws
+.idea/
+.DS_Store
+out/
+.assetcache
