@@ -70,7 +70,18 @@ repositories {
 dependencies {
 	compileOnly 'com.morpheusdata:morpheus-plugin-api:0.13.4-SNAPSHOT'
 	compileOnly "org.codehaus.groovy:groovy-all:$groovyVersion"
+	implementation("com.bertramlabs.plugins:karman-core:${karmanVersion}") {
+		exclude module: 'groovy-all'
+	}
+	implementation 'org.apache.commons:commons-compress:1.21'
     implementation 'commons-logging:commons-logging:1.1.1'
+	implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+	implementation 'org.apache.httpcomponents:httpmime:4.5.13'
+	implementation 'org.apache.httpcomponents:httpasyncclient:4.1.4'
+	implementation 'org.apache.httpcomponents:httpcore-nio:4.4.12'
+	implementation('org.codehaus.groovy.modules.http-builder:http-builder:0.7.1') {
+		exclude module:'xercesImpl'
+	}
     testImplementation "org.codehaus.groovy:groovy-all:$groovyVersion"
     testImplementation "org.spockframework:spock-core:$spockVersion"
 	testImplementation 'com.morpheusdata:morpheus-plugin-api:0.13.2-SNAPSHOT'
