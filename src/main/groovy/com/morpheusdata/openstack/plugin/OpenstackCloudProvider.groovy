@@ -23,6 +23,7 @@ import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.FlavorsSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
+import com.morpheusdata.openstack.plugin.sync.StorageTypesSync
 import com.morpheusdata.openstack.plugin.utils.AuthConfig
 import com.morpheusdata.openstack.plugin.utils.OpenStackComputeUtility
 import com.morpheusdata.request.ValidateCloudRequest
@@ -268,8 +269,27 @@ class OpenstackCloudProvider implements CloudProvider {
 
 	@Override
 	Collection<StorageVolumeType> getStorageVolumeTypes() {
-		def volumeTypes = []
-		volumeTypes
+
+		def openstackVolume = new StorageVolumeType([
+				code          : 'openstack-plugin-cloudVolume',
+				displayName   : 'OpenStack Volume',
+				name          : 'Volume',
+				description   : 'OpenStack Volume',
+				volumeType    : 'volume',
+				displayOrder  : 1,
+				customLabel   : true,
+				customSize    : true,
+				defaultType   : true,
+				autoDelete    : true,
+				minStorage    : 0,
+				hasDatastore  : true,
+				allowSearch   : true,
+				volumeCategory: 'volume',
+				resizable     : true,
+				planResizable : false
+		])
+
+		[openstackVolume]
 	}
 
 	@Override
@@ -284,14 +304,14 @@ class OpenstackCloudProvider implements CloudProvider {
 			if(cloudInfo) {
 				def username
 				def password
-				if(validateCloudRequest.credentialType?.toString().isNumber()) {
+				if(validateCloudRequest.credentialType?.toString()?.isNumber()) {
 					AccountCredential accountCredential = morpheus.accountCredential.get(validateCloudRequest.credentialType.toLong()).blockingGet()
 					password = accountCredential.data.password
 					username = accountCredential.data.username
 				} else if(validateCloudRequest.credentialType == 'username-password') {
 					password = validateCloudRequest.credentialPassword
 					username = validateCloudRequest.credentialUsername
-				} else if(validateCloudRequest.credentialType == 'local') {
+				} else if(validateCloudRequest.credentialType == 'local' || !validateCloudRequest.credentialType) {
 					password = validateCloudRequest.opts?.zone?.servicePassword
 					if(password == '************' && cloudInfo.id) {
 						password = cloudInfo.servicePassword
@@ -563,8 +583,7 @@ class OpenstackCloudProvider implements CloudProvider {
 					(new AvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 					(new StorageAvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 					(new FlavorsSync(plugin, cloud, client, authConfig, cloudPool)).execute()
-//					cacheFlavors([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
-//					cacheVolumeTypes([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
+					(new StorageTypesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 				}
 				morpheus.cloud.updateZoneStatus(cloud, Cloud.Status.ok, null, syncDate)
 			} else {

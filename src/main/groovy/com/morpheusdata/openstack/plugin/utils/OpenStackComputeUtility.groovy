@@ -3887,7 +3887,7 @@ class OpenStackComputeUtility {
 	}
 
 	static fetchApiMicroVersion(HttpApiClient client, AuthConfig authConfig, apiUrl, apiVersion) {
-		def rtn
+		def rtn = ''
 		log.debug "fetchApiMicroVersion: ${apiUrl} ${apiVersion}"
 		try {
 			def token = getToken(client, authConfig)
@@ -3961,7 +3961,7 @@ class OpenStackComputeUtility {
 		// } else if(config?.computeVersion) {
 		// 	return config.computeVersion
 		// }
-		def rtn
+		def rtn = ''
 		// use cached if we have it
 		if(config?.computeMicroVersion) {
 			rtn = config.computeMicroVersion
