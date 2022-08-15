@@ -83,10 +83,12 @@ class ProjectsSync {
 			processData.listResults = listResults.results.projects?.findAll { it ->
 				def include = it.enabled && !it.is_domain
 				if(include) {
-					if(processData.cloudProjectId) {
-						include = it.id == processData.cloudProjectId
-					} else {
-						include = it.name == processData.cloudProjectName
+					if(processData.isCloudProjectScoped) {
+						if (processData.cloudProjectId) {
+							include = it.id == processData.cloudProjectId
+						} else {
+							include = it.name == processData.cloudProjectName
+						}
 					}
 				}
 				include

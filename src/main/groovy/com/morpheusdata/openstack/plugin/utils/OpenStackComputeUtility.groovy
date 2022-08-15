@@ -99,7 +99,7 @@ class OpenStackComputeUtility {
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/flavors/detail", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
-				rtn.success = results?.success && results?.error != true && results.statusCode == 200
+				rtn.success = results?.success && results?.error != true && !results.errorCode
 				if(rtn.success) {
 					if(results.data) {
 						rtn.results = results.data

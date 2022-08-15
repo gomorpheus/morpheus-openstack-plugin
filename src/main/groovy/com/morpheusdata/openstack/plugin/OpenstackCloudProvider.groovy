@@ -20,6 +20,7 @@ import com.morpheusdata.model.StorageVolumeType
 import com.morpheusdata.model.projection.ComputeZonePoolIdentityProjection
 import com.morpheusdata.openstack.plugin.sync.AvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.EndpointsSync
+import com.morpheusdata.openstack.plugin.sync.FlavorsSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.utils.AuthConfig
@@ -561,6 +562,7 @@ class OpenstackCloudProvider implements CloudProvider {
 					AuthConfig authConfig = plugin.getAuthConfig(cloud)
 					(new AvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 					(new StorageAvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
+					(new FlavorsSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 //					cacheFlavors([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
 //					cacheVolumeTypes([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
 				}
