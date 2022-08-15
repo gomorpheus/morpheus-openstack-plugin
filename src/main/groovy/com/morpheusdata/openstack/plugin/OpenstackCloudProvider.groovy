@@ -21,6 +21,7 @@ import com.morpheusdata.model.projection.ComputeZonePoolIdentityProjection
 import com.morpheusdata.openstack.plugin.sync.AvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
+import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.utils.AuthConfig
 import com.morpheusdata.openstack.plugin.utils.OpenStackComputeUtility
 import com.morpheusdata.request.ValidateCloudRequest
@@ -559,7 +560,7 @@ class OpenstackCloudProvider implements CloudProvider {
 				for(ComputeZonePoolIdentityProjection cloudPool in cloudPools) {
 					AuthConfig authConfig = plugin.getAuthConfig(cloud)
 					(new AvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
-//					cacheStorageAvailabilityZones([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
+					(new StorageAvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 //					cacheFlavors([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
 //					cacheVolumeTypes([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
 				}
