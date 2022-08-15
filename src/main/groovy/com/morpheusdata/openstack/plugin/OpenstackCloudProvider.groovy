@@ -5,14 +5,22 @@ import com.morpheusdata.core.CloudProvider
 import com.morpheusdata.core.MorpheusContext
 import com.morpheusdata.core.Plugin
 import com.morpheusdata.core.ProvisioningProvider
+import com.morpheusdata.core.util.ConnectionUtils
+import com.morpheusdata.core.util.HttpApiClient
+import com.morpheusdata.model.AccountCredential
 import com.morpheusdata.model.Cloud
 import com.morpheusdata.model.ComputeServer
 import com.morpheusdata.model.ComputeServerType
 import com.morpheusdata.model.Icon
+import com.morpheusdata.model.NetworkProxy
 import com.morpheusdata.model.NetworkType
 import com.morpheusdata.model.OptionType
 import com.morpheusdata.model.StorageControllerType
 import com.morpheusdata.model.StorageVolumeType
+import com.morpheusdata.openstack.plugin.sync.EndpointsSync
+import com.morpheusdata.openstack.plugin.sync.ProjectsSync
+import com.morpheusdata.openstack.plugin.utils.AuthConfig
+import com.morpheusdata.openstack.plugin.utils.OpenStackComputeUtility
 import com.morpheusdata.request.ValidateCloudRequest
 import com.morpheusdata.response.ServiceResponse
 import groovy.util.logging.Slf4j
@@ -142,7 +150,89 @@ class OpenstackCloudProvider implements CloudProvider {
 				inputType: OptionType.InputType.CHECKBOX,
 				fieldContext: 'config'
 		)
-		[apiUrl, domain, credentials, username, password, project, region, diskMode, provisionMethod, importExisting]
+
+		OptionType endpointComputeApi = new OptionType(
+				name: 'Compute Service',
+				code: 'openstack-plugin-endpoint-compute-api',
+				fieldName: 'computeApi',
+				displayOrder: 200,
+				fieldLabel: 'Compute Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+
+		OptionType endpointImageApi = new OptionType(
+				name: 'Image Service',
+				code: 'openstack-plugin-endpoint-image-api',
+				fieldName: 'imageApi',
+				displayOrder: 210,
+				fieldLabel: 'Image Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+
+		OptionType endpointStorageApi = new OptionType(
+				name: 'Storage Service',
+				code: 'openstack-plugin-endpoint-storage-api',
+				fieldName: 'storageApi',
+				displayOrder: 220,
+				fieldLabel: 'Image Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+
+		OptionType endpointNetworkApi = new OptionType(
+				name: 'Network Service',
+				code: 'openstack-plugin-endpoint-network-api',
+				fieldName: 'networkApi',
+				displayOrder: 230,
+				fieldLabel: 'Network Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+		OptionType endpointLoadBalancerApi = new OptionType(
+				name: 'Load Balancer Service',
+				code: 'openstack-plugin-endpoint-load-balancer-api',
+				fieldName: 'loadBalancerApi',
+				displayOrder: 240,
+				fieldLabel: 'Load Balancer Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+		OptionType endpointObjectStorageApi = new OptionType(
+				name: 'Object Storage Service',
+				code: 'openstack-plugin-endpoint-object-storage-api',
+				fieldName: 'objectStorageApi',
+				displayOrder: 250,
+				fieldLabel: 'Object Storage Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+		OptionType endpointSharedFileSystemApi = new OptionType(
+				name: 'Shared File System Service',
+				code: 'openstack-plugin-endpoint-shared-file-system-api',
+				fieldName: 'sharedFileSystemApi',
+				displayOrder: 260,
+				fieldLabel: 'Shared File System Service',
+				required: false,
+				inputType: OptionType.InputType.TEXT,
+				fieldContext: 'config',
+				fieldGroup: 'Service Endpoints'
+		)
+		[apiUrl, domain, credentials, username, password, project, region, diskMode, provisionMethod, importExisting,
+		    endpointComputeApi, endpointImageApi, endpointStorageApi, endpointNetworkApi, endpointLoadBalancerApi, endpointObjectStorageApi, endpointSharedFileSystemApi]
 	}
 
 	@Override
@@ -186,7 +276,63 @@ class OpenstackCloudProvider implements CloudProvider {
 		log.info("validate: {}", cloudInfo)
 		try {
 			if(cloudInfo) {
-				return ServiceResponse.success()
+				def username
+				def password
+				if(validateCloudRequest.credentialType?.toString().isNumber()) {
+					AccountCredential accountCredential = morpheus.accountCredential.get(validateCloudRequest.credentialType.toLong()).blockingGet()
+					password = accountCredential.data.password
+					username = accountCredential.data.username
+				} else if(validateCloudRequest.credentialType == 'username-password') {
+					password = validateCloudRequest.credentialPassword
+					username = validateCloudRequest.credentialUsername
+				} else if(validateCloudRequest.credentialType == 'local') {
+					password = validateCloudRequest.opts?.zone?.servicePassword
+					if(password == '************' && cloudInfo.id) {
+						password = cloudInfo.servicePassword
+					}
+					username = validateCloudRequest.opts?.zone?.serviceUsername
+				}
+
+				if(username?.length() < 1) {
+					return new ServiceResponse(success: false, msg: 'Enter a username')
+				} else if(password?.length() < 1) {
+					return new ServiceResponse(success: false, msg: 'Enter a password')
+				} else if(cloudInfo.serviceUrl?.length() < 1) {
+					return new ServiceResponse(success: false, msg: 'Enter an api url')
+				} else {
+					def identityVersion = OpenStackComputeUtility.parseEndpointVersion(cloudInfo.serviceUrl) ?: 'v3'
+					def parsedVersion = identityVersion.substring(1)?.toString()?.isNumber() ? identityVersion.substring(1).toFloat() : null
+					if(parsedVersion < 3.0f) {
+						return new ServiceResponse(success: false, msg: "Minimum Identity API version supported is v3", errors: ["serviceUrl": "Minimum Identity API version supported is v3"])
+					}
+					if(cloudInfo.enabled) {
+						//test api call
+						NetworkProxy proxySettings = cloudInfo.apiProxy
+						HttpApiClient client = new HttpApiClient()
+						client.networkProxy = proxySettings
+
+						Map configMap = cloudInfo.getConfigMap()
+						AuthConfig authConfig = new AuthConfig(projectName: configMap.projectName, expireToken: true,
+								identityUrl: cloudInfo.serviceUrl,
+								identityVersion: identityVersion, cloudConfig: configMap, domainId: configMap.domainId, username: username, password: password)
+						def token = OpenStackComputeUtility.getToken(client, authConfig)
+						if(token.token) {
+							log.info("Openstack Token Acquired along with Project ID...Setting Endpoints.")
+
+							def endpointResults = (new EndpointsSync(plugin, cloudInfo, client, authConfig)).execute()
+
+							if(endpointResults.success == false)
+								return new ServiceResponse(success: false, msg: 'Error connecting to Openstack provider')
+							else
+								return ServiceResponse.success()
+						} else {
+							log.error("Error verifying Openstack cloud. Unable to acquire access token.")
+							return new ServiceResponse(success: false, msg: 'Unable to acquire access token')
+						}
+					} else {
+						return ServiceResponse.success()
+					}
+				}
 			} else {
 				return new ServiceResponse(success: false, msg: 'No cloud found')
 			}
@@ -194,11 +340,6 @@ class OpenstackCloudProvider implements CloudProvider {
 			log.error('Error validating cloud', e)
 			return new ServiceResponse(success: false, msg: 'Error validating cloud')
 		}
-	}
-
-	@Override
-	ServiceResponse refresh(Cloud cloudInfo) {
-		initializeCloud(cloudInfo)
 	}
 
 	@Override
@@ -295,10 +436,119 @@ class OpenstackCloudProvider implements CloudProvider {
 		log.info "config: ${cloud.configMap}"
 
 		try {
+			initializeCloudServices(cloud)
+			initializeCloudConfig(cloud)
+			//sync
+			initializeCloudCache(cloud)
+//			refreshDailyZone(opts.zone) // TODO : Need a daily mechanism
+			rtn = refresh(cloud)
+			
 		} catch (e) {
 			log.error("refresh cloud error: ${e}", e)
+			rtn.msg = "Error in setting up cloud: ${e}"
+			rtn.error = rtn.msg
 		}
 
+		return rtn
+	}
+
+	def initializeCloudServices(Cloud cloud) {
+		// TODO : initialize various network and load balancer services
+	}
+
+	def initializeCloudConfig(Cloud cloud) {
+		log.debug "initializeCloudConfig: ${cloud.id}"
+		HttpApiClient client
+		try {
+			def configMap = cloud.getConfigMap()
+			configMap.identityVersion = OpenStackComputeUtility.parseEndpointVersion(cloud.serviceUrl) ?: 'v3'
+			cloud.setConfigMap(configMap)
+			morpheus.cloud.save(cloud).blockingGet()
+			cloud = morpheus.cloud.getCloudById(cloud.id).blockingGet()
+
+			if (cloud.enabled == true) {
+				NetworkProxy proxySettings = cloud.apiProxy
+				client = new HttpApiClient()
+				client.networkProxy = proxySettings
+
+				AuthConfig authConfig = plugin.getAuthConfig(cloud, true)
+				def endpointResults = (new EndpointsSync(plugin, cloud, client, authConfig)).execute()
+				if (endpointResults.success) {
+					morpheus.cloud.save(cloud).blockingGet()
+				} else {
+					log.error "Error connecting to Openstack provider: ${cloud.id}"
+				}
+			}
+		} catch(e) {
+			log.error "Exception in initializeCloudConfig ${cloud.id} : ${e}", e
+		} finally {
+			if(client) {
+				client.shutdownClient()
+			}
+		}
+	}
+
+	def initializeCloudCache(Cloud cloud) {
+		log.debug("initializeCloudCache: ${cloud}")
+		HttpApiClient client
+		try {
+			def hostOnline = testHostConnection(cloud)
+			if(hostOnline) {
+				NetworkProxy proxySettings = cloud.apiProxy
+				client = new HttpApiClient()
+				client.networkProxy = proxySettings
+
+				// need to seed in initial projects to support further data caching
+				log.debug("projects started")
+				Date now = new Date()
+
+				def authConfig = plugin.getAuthConfig(cloud, true)
+				(new ProjectsSync(plugin, cloud, client, authConfig)).execute()
+
+				log.debug("projects completed in ${new Date().time - now.time} ms")
+			}
+		} catch(e) {
+			log.error("initialZoneCache error: ${e}", e)
+		}
+	}
+
+	@Override
+	ServiceResponse refresh(Cloud cloud) {
+		log.debug "refresh: ${cloud.id}"
+		ServiceResponse rtn = new ServiceResponse(success: false)
+
+		HttpApiClient client
+
+		try {
+			NetworkProxy proxySettings = cloud.apiProxy
+			client = new HttpApiClient()
+			client.networkProxy = proxySettings
+
+
+			rtn = ServiceResponse.success()
+		} catch(e) {
+			log.error "Error on cloud refresh for ${cloudInfo.id}"
+		} finally {
+			if(client) {
+				client.shutdownClient()
+			}
+		}
+		rtn
+	}
+
+	def testHostConnection(Cloud cloud) {
+		def rtn = false
+		try {
+			AuthConfig authConfig = plugin.getAuthConfig(cloud, true)
+			def apiUrl = OpenStackComputeUtility.getOpenstackIdentityUrl(authConfig)
+			def apiUrlObj = new URL(apiUrl)
+			def apiHost = apiUrlObj.getHost()
+			def apiPort = apiUrlObj.getPort() > 0 ? apiUrlObj.getPort() : (apiUrlObj?.getProtocol()?.toLowerCase() == 'https' ? 443 : 80)
+			//socket check..
+			rtn = ConnectionUtils.testHostConnectivity(apiHost, apiPort, true, true, cloud.apiProxy)
+		} catch(e) {
+			log.error("error testing host connection for cloud ${cloud?.name}: ${e}")
+		}
 		return rtn
 	}
 }

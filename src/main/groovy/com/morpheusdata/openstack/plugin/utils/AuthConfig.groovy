@@ -19,4 +19,9 @@ public class AuthConfig {
 	public String loadBalancerUrl
 	public Boolean expireToken // whether the token should be expired
 	public TokenResult tokenResult // The token for the auth config specified in the other properties
+
+	@Override
+	public String toString(){
+		"cloudId: ${cloudId}, projectId: ${projectId}, projectName; ${projectName}, identityUrl: ${identityUrl}, identityVersion: ${identityVersion}, domainId: ${domainId}, cloudConfig: ${cloudConfig}"
+	}
 }

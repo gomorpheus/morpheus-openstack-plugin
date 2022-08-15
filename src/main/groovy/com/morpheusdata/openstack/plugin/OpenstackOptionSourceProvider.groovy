@@ -133,9 +133,9 @@ class OpenstackOptionSourceProvider extends AbstractOptionSourceProvider {
 					tmpCloud = morpheusContext.cloud.getCloudById(zoneId).blockingGet()
 
 					// Load the credential for the cloud
-					def authData = plugin.getAuthConfig(tmpCloud)
-					def username = authData.apiUsername
-					def password = authData.apiPassword
+					def authData = plugin.getAuthConfig(tmpCloud, true)
+					def username = authData.username
+					def password = authData.password
 					tmpCloud.accountCredentialData = null // force the user of serviceUsername / servicePassword
 					tmpCloud.serviceUsername = username
 					tmpCloud.servicePassword = password

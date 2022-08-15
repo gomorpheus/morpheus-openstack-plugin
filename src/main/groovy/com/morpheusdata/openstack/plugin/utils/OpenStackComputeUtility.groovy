@@ -8,6 +8,8 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory
 import org.apache.http.conn.ssl.SSLContextBuilder
 import org.apache.http.conn.ssl.TrustStrategy
+
+import javax.json.Json
 import javax.net.ssl.SSLSession
 import javax.net.ssl.SSLSocket
 import org.apache.http.client.methods.*
@@ -372,10 +374,10 @@ class OpenStackComputeUtility {
 
 	static createProject(HttpApiClient client, AuthConfig authConfig, String projectId, Map config) {
 		def rtn = [success:false, data:[:]]
-		def tokenResults = getApiToken(client, authConfig, true)
-		if(tokenResults.success && tokenResults.token) {
+		getApiToken(client, authConfig, true)
+		if(authConfig.tokenResult) {
 			def apiPath = '/' + authConfig.identityVersion + '/projects'
-			def headers = buildHeaders([:], tokenResults.token)
+			def headers = buildHeaders([:], authConfig.tokenResult.token)
 			def body = [
 					project: [
 							name: config.name,
@@ -387,7 +389,7 @@ class OpenStackComputeUtility {
 			]
 			log.debug("create project body: ${body}")
 			def requestOpts = [headers:headers, body:body]
-			def results = callApi(client, authConfig, apiPath, tokenResults.token, requestOpts, 'POST')
+			def results = callApi(client, authConfig, apiPath, authConfig.tokenResult.token, requestOpts, 'POST')
 			log.debug("create project results: ${results}")
 			rtn.success = results?.success && results?.error != true
 			if(rtn.success) {
@@ -465,15 +467,15 @@ class OpenStackComputeUtility {
 		return rtn
 	}
 
-	static listUserRoleAssignments(HttpApiClient client, AuthConfig authConfig, String userId, Map opts=[:]) {
+	static listUserRoleAssignments(HttpApiClient client, AuthConfig authConfig, String userId) {
 		def rtn = [success:false, data:[:]]
-		def tokenResults = getApiToken(client, authConfig, true)
-		if(tokenResults.success && tokenResults.token) {
+		getApiToken(client, authConfig, true)
+		if(authConfig.tokenResult) {
 			def apiPath = "/${authConfig.identityVersion}/role_assignments"
-			def headers = buildHeaders([:], tokenResults.token)
+			def headers = buildHeaders([:], authConfig.tokenResult.token)
 			def query = [user: [id: userId]]
 			def requestOpts = [headers:headers, query:query]
-			def results = callApi(client, authConfig, apiPath, tokenResults.token, requestOpts, 'GET')
+			def results = callApi(client, authConfig, apiPath, authConfig.tokenResult.token, requestOpts, 'GET')
 			log.debug("listing user role results: ${results}")
 			rtn.success = results?.success && results?.error != true
 			if(rtn.success) {
@@ -3377,7 +3379,7 @@ class OpenStackComputeUtility {
 		def projectName
 		if(!skipProject) {
 			projectId = authConfig.projectId ?: null
-			projectName = config.projectName ?: authConfig.project
+			projectName = config.projectName ?: authConfig.projectName
 			if(projectName instanceof List) {
 				projectName = projectName.getAt(0)
 			}
@@ -3390,7 +3392,7 @@ class OpenStackComputeUtility {
 		if(cachedToken?.token && !authConfig.expireToken) {
 			rtn.success = true
 			rtn.token = cachedToken.token
-			rtn.tokenExpires = cachedToken.expires
+			rtn.expires = cachedToken.expires
 			rtn.apiProjectId = cachedToken.apiProjectId
 			rtn.apiUserId = cachedToken.apiUserId
 			rtn.apiDomainId = cachedToken.apiDomainId
@@ -3457,7 +3459,6 @@ class OpenStackComputeUtility {
 		rtn.osVersion = apiVersion
 		if(rtn.success && !rtn.token) {
 			rtn.results = results.data
-			println "BOBW : OpenStackComputeUtility.groovy:3460 : resulst.haadres ${results.headers}"
 			rtn.token = results.headers['X-Subject-Token']
 			rtn.apiProjectId = rtn.results.token?.project?.id
 			rtn.apiDomainId = rtn.results.token?.user?.domain?.id
@@ -3475,7 +3476,7 @@ class OpenStackComputeUtility {
 			}
 		} else {
 			rtn.data = results.data
-			rtn.errorCode = results.errorCode.toLong()
+			rtn.errorCode = results.errorCode?.toLong()
 			rtn.headers = results.headers
 		}
 		return rtn
@@ -3488,7 +3489,7 @@ class OpenStackComputeUtility {
 	 * @return Map On Success - [token: String, expires: Date, projectId: String], On Error - [data: Map, errorCode: Int, headers: Map]
 	 **/
 	static getApiToken(HttpApiClient client, AuthConfig authConfig, Boolean skipProject = false) {
-		def rtn = [success:false, projectId:null]
+		def rtn = [success:false, projectId:null, token: null]
 		def requestToken = true
 
 		if(authConfig.tokenResult) {
@@ -3517,6 +3518,11 @@ class OpenStackComputeUtility {
 			TokenResult tokenResult = getToken(client, authConfig, skipProject)
 			if(tokenResult.success) {
 				authConfig.tokenResult = tokenResult
+				authConfig.expireToken = false
+				rtn.token = tokenResult
+				rtn.success = true
+			} else {
+				authConfig.tokenResult = null
 			}
 		}
 
@@ -3691,7 +3697,7 @@ class OpenStackComputeUtility {
 	//"access": {"token": { "tenant": { : [ [{"adminURL": "http://10.0.1.150:8774/v2.1/5647d58457b942839a691408b9b5d12b", "region": "RegionOne", "internalURL": "http://10.0.1.150:8774/v2.1/5647d58457b942839a691408b9b5d12b", "id": "0d40113e8fd34d2ba7f81a58b3589b82", "publicURL": "http://10.0.1.150:8774/v2.1/5647d58457b942839a691408b9b5d12b"}], "endpoints_links": [], "type": "compute", "name": "nova"}, {"endpoints": [{"adminURL": "http://10.0.1.150:9696/", "region": "RegionOne", "internalURL": "http://10.0.1.150:9696/", "id": "7749f46975a8425c996cb334dafcc50d", "publicURL": "http://10.0.1.150:9696/"}], "endpoints_links": [], "type": "network", "name": "neutron"}, {"endpoints": [{"adminURL": "http://10.0.1.150:8776/v2/5647d58457b942839a691408b9b5d12b", "region": "RegionOne", "internalURL": "http://10.0.1.150:8776/v2/5647d58457b942839a691408b9b5d12b", "id": "773acd0547064f43a3a3899866e86e0c", "publicURL": "http://10.0.1.150:8776/v2/5647d58457b942839a691408b9b5d12b"}], "endpoints_links": [], "type": "volumev2", "name": "cinderv2"}, {"endpoints": [{"adminURL": "http://10.0.1.150:9292", "region": "RegionOne", "internalURL": "http://10.0.1.150:9292", "id": "6cbea136a1514bdba735656b9f4bb614", "publicURL": "http://10.0.1.150:9292"}], "endpoints_links": [], "type": "image", "name": "glance"}, {"endpoints": [{"adminURL": "http://10.0.1.150:8774/v2/5647d58457b942839a691408b9b5d12b", "region": "RegionOne", "internalURL": "http://10.0.1.150:8774/v2/5647d58457b942839a691408b9b5d12b", "id": "07563911a2294a8091707ba09bf3f8d7", "publicURL": "http://10.0.1.150:8774/v2/5647d58457b942839a691408b9b5d12b"}], "endpoints_links": [], "type": "compute_legacy", "name": "nova_legacy"}, {"endpoints": [{"adminURL": "http://10.0.1.150:8776/v1/5647d58457b942839a691408b9b5d12b", "region": "RegionOne", "internalURL": "http://10.0.1.150:8776/v1/5647d58457b942839a691408b9b5d12b", "id": "15b670320fa9426eabcfff4409269d4d", "publicURL": "http://10.0.1.150:8776/v1/5647d58457b942839a691408b9b5d12b"}], "endpoints_links": [], "type": "volume", "name": "cinder"}, {"endpoints": [{"adminURL": "http://10.0.1.150:8773/", "region": "RegionOne", "internalURL": "http://10.0.1.150:8773/", "id": "99ec90c3db6947b8b88e5ee037770d8d", "publicURL": "http://10.0.1.150:8773/"}], "endpoints_links": [], "type": "ec2", "name": "ec2"}, {"endpoints": [{"adminURL": "http://10.0.1.150:35357/v2.0", "region": "RegionOne", "internalURL": "http://10.0.1.150:5000/v2.0", "id": "28770d15979a487080c65301b69509ed", "publicURL": "http://10.0.1.150:5000/v2.0"}], "endpoints_links": [], "type": "identity", "name": "keystone"}], "user": {"username": "bwheeler", "roles_links": [], "id": "2b637152a7d44270a26d2b6c605e3963", "roles": [{"name": "_member_"}, {"name": "Member"}], "name": "bwheeler"}, "metadata": {"is_admin": 0, "roles": ["9fe2ff9ee4384b1894a90878d3e92bab", "f9f572e6744a4e4da1195f89c2451ab5"]}}}
 	//serviceCatalog.endpoints.type internalURL
 	static setEndpoints(Cloud cloud, HttpApiClient client, AuthConfig authConfig, osVersion, tokenResults, overrides = [:]) {
-		def rtn = [success:false, errors:[]]
+		def rtn = [success:false, errors:[:]]
 		def configMap = cloud.getConfigMap()
 		def osUrl = getOpenstackIdentityUrl(authConfig)
 		def osHost = parseHost(osUrl)
@@ -3719,13 +3725,13 @@ class OpenStackComputeUtility {
 
 			if(!match && endpointType.required) {
 				log.error("Openstack: Failed to set endpoint for ${endpointType.name} API")
-				rtn.errors << [(endpointType.name): "Failed to find endpoint."]
+				rtn.errors[endpointType.name] = "Failed to find endpoint."
 			}
 			configMap["${endpointType.accessLabel}Api"] = match ? parseEndpoint(match) : null
 			configMap["${endpointType.accessLabel}Version"] = match ? parseEndpointVersion(match, endpointType.version.noDot, endpointType.version.defaultValue) : null
 			def catalogEndpoint = configMap["${endpointType.accessLabel}Api"]
 			def catalogVersion = configMap["${endpointType.accessLabel}Version"]
-			def endpointOverride = configMap.endpointOverrides?.getAt("${endpointType.accessLabel}Api")
+			def endpointOverride = configMap?.getAt("${endpointType.accessLabel}Api")
 			def versionOverride = endpointOverride ? parseEndpointVersion(endpointOverride, endpointType.version.noDot, endpointType.version.defaultValue) : null
 			if ((catalogEndpoint || endpointOverride) && (versionOverride || catalogVersion)) {
 				configMap["${endpointType.accessLabel}MicroVersion"] = fetchApiMicroVersion(client, authConfig, endpointOverride ?: catalogEndpoint, versionOverride ?: catalogVersion)
@@ -3843,9 +3849,6 @@ class OpenStackComputeUtility {
 		def overrideVersion
 		def apiEndpoint
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides) {
-			apiEndpoint = config.endpointOverrides[configServiceRef]
-		}
 		if(apiEndpoint) {
 			overrideVersion = parseEndpointVersion(apiEndpoint, noDot, defaultValue)
 		}
@@ -3855,8 +3858,10 @@ class OpenStackComputeUtility {
 
 	static fetchApiMicroVersion(HttpApiClient client, AuthConfig authConfig, apiUrl, apiVersion) {
 		def rtn
+		log.debug "fetchApiMicroVersion: ${apiUrl} ${apiVersion}"
 		try {
-			def apiVersionResults = callApi(client, authConfig, apiVersion, null, [:], 'GET')
+			def token = getToken(client, authConfig)
+			def apiVersionResults = callApi(client, authConfig, apiVersion, token.token, [osUrl: apiUrl], 'GET')
 			if(apiVersionResults.success) {
 				rtn = apiVersionResults.data.versions.find { it.id == apiVersion }?.version
 				if(!rtn && !apiVersion?.contains(".")) {
@@ -3879,9 +3884,7 @@ class OpenStackComputeUtility {
 	}
 
 	static getOpenstackIdentityUrl(AuthConfig authConfig) {
-		def config = authConfig.cloudConfig
-		if(config?.identityApi)
-			return config.identityApi
+		return authConfig.identityUrl
 		throw new Exception('no openstack identity api url specified')
 	}
 
@@ -3903,9 +3906,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackComputeUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.computeApi) {
-			return config.endpointOverrides.computeApi
-		} else if(config?.computeApi) {
+		if(config?.computeApi) {
 			return config.computeApi
 		}
 		throw new Exception('no openstack compute api url specified')
@@ -3946,9 +3947,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackImageUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.imageApi) {
-			return config.endpointOverrides.imageApi
-		} else if(config?.imageApi) {
+		if(config?.imageApi) {
 			return config.imageApi
 		}
 		throw new Exception('no openstack image api url specified')
@@ -3967,9 +3966,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackStorageUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.storageApi) {
-			return config.endpointOverrides.storageApi
-		} else if(config?.storageApi) {
+		if(config?.storageApi) {
 			return config.storageApi
 		}
 		throw new Exception('no openstack storage api url specified')
@@ -3988,9 +3985,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackNetworkUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.networkApi) {
-			return config.endpointOverrides.networkApi
-		} else if(config?.networkApi) {
+		if(config?.networkApi) {
 			return config.networkApi
 		}
 		throw new Exception('no openstack network api url specified')
@@ -4020,9 +4015,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackLoadBalancerUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.loadBalancerApi) {
-			return config.endpointOverrides.loadBalancerApi
-		} else if(config?.loadBalancerApi) {
+		if(config?.loadBalancerApi) {
 			return config.loadBalancerApi
 		}
 		throw new Exception('no openstack load balancer api url specified')
@@ -4041,9 +4034,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackSharedFileSystemUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.sharedFileSystemApi) {
-			return config.endpointOverrides.sharedFileSystemApi
-		} else if(config?.sharedFileSystemApi) {
+		if(config?.sharedFileSystemApi) {
 			return config.sharedFileSystemApi
 		}
 		throw new Exception('no openstack shared file system api url specified')
@@ -4066,9 +4057,7 @@ class OpenStackComputeUtility {
 
 	static getOpenstackObjectStorageUrl(AuthConfig authConfig) {
 		def config = authConfig.cloudConfig
-		if(config?.endpointOverrides?.objectStorageApi) {
-			return config.endpointOverrides.objectStorageApi
-		} else if(config?.objectStorageApi) {
+		if(config?.objectStorageApi) {
 			return config.objectStorageApi
 		}
 		throw new Exception('no openstack object storage api url specified')
@@ -6982,6 +6971,10 @@ class OpenStackComputeUtility {
 		}
 
 		return headers
+	}
+
+	static isCloudProjectScoped(Cloud cloud) {
+		return (cloud?.getConfigProperty("projectName") != null && cloud?.getConfigProperty("projectName") != "")
 	}
 
 	static getResponseError(Map results) {
