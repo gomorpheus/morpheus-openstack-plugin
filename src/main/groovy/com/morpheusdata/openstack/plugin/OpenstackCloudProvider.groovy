@@ -17,6 +17,8 @@ import com.morpheusdata.model.NetworkType
 import com.morpheusdata.model.OptionType
 import com.morpheusdata.model.StorageControllerType
 import com.morpheusdata.model.StorageVolumeType
+import com.morpheusdata.model.projection.ComputeZonePoolIdentityProjection
+import com.morpheusdata.openstack.plugin.sync.AvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.utils.AuthConfig
@@ -24,6 +26,8 @@ import com.morpheusdata.openstack.plugin.utils.OpenStackComputeUtility
 import com.morpheusdata.request.ValidateCloudRequest
 import com.morpheusdata.response.ServiceResponse
 import groovy.util.logging.Slf4j
+
+import java.security.MessageDigest
 
 @Slf4j
 class OpenstackCloudProvider implements CloudProvider {
@@ -343,11 +347,6 @@ class OpenstackCloudProvider implements CloudProvider {
 	}
 
 	@Override
-	void refreshDaily(Cloud cloudInfo) {
-		//nothing daily
-	}
-
-	@Override
 	ServiceResponse deleteCloud(Cloud cloudInfo) {
 		return new ServiceResponse(success: true)
 	}
@@ -440,7 +439,7 @@ class OpenstackCloudProvider implements CloudProvider {
 			initializeCloudConfig(cloud)
 			//sync
 			initializeCloudCache(cloud)
-//			refreshDailyZone(opts.zone) // TODO : Need a daily mechanism
+			refreshDaily(cloud)
 			rtn = refresh(cloud)
 			
 		} catch (e) {
@@ -511,7 +510,7 @@ class OpenstackCloudProvider implements CloudProvider {
 			log.error("initialZoneCache error: ${e}", e)
 		}
 	}
-
+	
 	@Override
 	ServiceResponse refresh(Cloud cloud) {
 		log.debug "refresh: ${cloud.id}"
@@ -536,6 +535,48 @@ class OpenstackCloudProvider implements CloudProvider {
 		rtn
 	}
 
+	@Override
+	void refreshDaily(Cloud cloud) {
+		log.debug("refreshDaily: ${cloud}")
+		def rtn = [success: false]
+
+		HttpApiClient client
+
+		try {
+			def syncDate = new Date()
+			def hostOnline = testHostConnection(cloud)
+			if(hostOnline) {
+				cloud = checkCloudConfig(cloud)
+				morpheus.cloud.updateZoneStatus(cloud, Cloud.Status.syncing, null, syncDate)
+				cloud = cacheApiMicroVersions(cloud)
+				def cloudPools = []
+				morpheus.cloud.pool.listSyncProjections(cloud.id, '').blockingSubscribe { cloudPools << it }
+
+				NetworkProxy proxySettings = cloud.apiProxy
+				client = new HttpApiClient()
+				client.networkProxy = proxySettings
+
+				for(ComputeZonePoolIdentityProjection cloudPool in cloudPools) {
+					AuthConfig authConfig = plugin.getAuthConfig(cloud)
+					(new AvailabilityZonesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
+//					cacheStorageAvailabilityZones([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
+//					cacheFlavors([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
+//					cacheVolumeTypes([account: zone.account, zone: zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings: proxySettings]).get()
+				}
+				morpheus.cloud.updateZoneStatus(cloud, Cloud.Status.ok, null, syncDate)
+			} else {
+				morpheus.cloud.updateZoneStatus(cloud, Cloud.Status.offline, 'Openstack not reachable', syncDate)
+			}
+			rtn.success = true
+		} catch(e) {
+			log.error("refreshDaily error: ${e}", e)
+		} finally {
+			if(client) {
+				client.shutdownClient()
+			}
+		}
+	}
+
 	def testHostConnection(Cloud cloud) {
 		def rtn = false
 		try {
@@ -550,5 +591,76 @@ class OpenstackCloudProvider implements CloudProvider {
 			log.error("error testing host connection for cloud ${cloud?.name}: ${e}")
 		}
 		return rtn
+	}
+
+	def Cloud checkCloudConfig(Cloud cloud) {
+		def save = false
+		def regionCode = getRegionCode(cloud)
+		if(cloud.regionCode != regionCode) {
+			cloud.regionCode = regionCode
+			save = true
+		}
+		if(save) {
+			cloud = saveAndGet(cloud)
+		}
+		cloud
+	}
+
+	String getRegionCode(Cloud cloud) {
+		def identityApi = cloud?.getConfigProperty('identityApi')
+		def domain = cloud.getConfigProperty('domainId')
+		def regionString = "${identityApi}.${domain}"
+		MessageDigest md = MessageDigest.getInstance("MD5")
+		md.update(regionString.bytes)
+		byte[] checksum = md.digest()
+		return checksum.encodeHex().toString()
+	}
+
+	def Cloud cacheApiMicroVersions(Cloud cloud) {
+		def account = cloud.account
+		try {
+			def doSave = false
+			def cloudConfigMap = cloud.getConfigMap()
+			def serviceNames = ['Compute', 'Image', 'Storage', 'Network', 'LoadBalancer', 'ObjectStorage', 'SharedFileSystem']
+			for(serviceName in serviceNames) {
+				try {
+					// uses the override version in the zone config if it exists.
+					def existingMicroVersion = cloudConfigMap["${serviceName}MicroVersion"]
+					def apiUrl
+					def apiVersion
+					try {
+						apiUrl = OpenStackComputeUtility."getOpenstack${serviceName}Url"(cloud)
+						apiVersion = OpenStackComputeUtility."getOpenstack${serviceName}Version"(cloud)
+					} catch(Exception e3) {
+						// api url isn't set, ignore
+					}
+					if(apiUrl) {
+						def currentMicroVersion =  OpenStackComputeUtility.fetchApiMicroVersion(apiUrl, apiVersion)
+						if(existingMicroVersion != currentMicroVersion) {
+							cloudConfigMap["${serviceName}MicroVersion"] = currentMicroVersion
+							doSave = true
+						}
+						log.debug("Current ${serviceName} microversion: ${cloudConfigMap["${serviceName}MicroVersion"]}")
+					}
+
+				} catch (Exception e2) {
+					log.error("cacheApiMicroVersions error caching microversion for ${serviceName}: ${e2}", e2)
+				}
+			}
+
+			if(doSave) {
+				cloud.setConfigMap(cloudConfigMap)
+				cloud = saveAndGet(cloud)
+			}
+		} catch(e) {
+			log.error("cacheApiMicroVersions error: ${e}", e)
+		}
+
+		cloud
+	}
+
+	private Cloud saveAndGet(Cloud cloud) {
+		morpheus.cloud.save(cloud).blockingGet()
+		return morpheus.cloud.getCloudById(cloud.id).blockingGet()
 	}
 }

@@ -105,7 +105,7 @@ class OpenstackPlugin extends Plugin {
 		if(networkApi) {
 			authConfig.networkUrl = OpenStackComputeUtility.parseEndpoint(networkApi)
 			authConfig.networkVersion = OpenStackComputeUtility.parseEndpointVersion(networkApi, false, 'v2.0')
-			authConfig.networkPath = '/' + rtn.networkVersion
+			authConfig.networkPath = '/' + authConfig.networkVersion
 		}
 	}
 

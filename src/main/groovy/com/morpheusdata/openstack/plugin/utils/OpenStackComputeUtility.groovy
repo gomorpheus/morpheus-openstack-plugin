@@ -95,9 +95,10 @@ class OpenStackComputeUtility {
 		def rtn = [success:false]
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/flavors/detail", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/flavors/detail", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true && results.statusCode == 200
 				if(rtn.success) {
 					if(results.data) {
@@ -124,9 +125,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/flavors/" + flavorId, token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/flavors/" + flavorId, token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -158,7 +160,7 @@ class OpenStackComputeUtility {
 			if(token.token && projectId) {
 				if(osUrl && osVersion) {
 					def query = [:]
-					def results = callApi(client, authConfig, '/' + osVersion + '/networks', token.token, [headers:['Content-Type':'application/json'], query: query], "GET")
+					def results = callApi(client, authConfig, '/' + osVersion + '/networks', token.token, [osUrl: osUrl, headers:['Content-Type':'application/json'], query: query], "GET")
 					rtn.success = results?.success && results?.error != true
 					log.debug("listNetworks ${results}")
 					if(rtn.success) {
@@ -170,8 +172,9 @@ class OpenStackComputeUtility {
 					}
 				} else {
 					rtn.api = 'nova'
+					osUrl = getOpenstackComputeUrl(authConfig)
 					osVersion = getOpenstackComputeVersion(authConfig)
-					def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-networks", token.token, [headers:['Content-Type':'application/json']], "GET")
+					def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-networks", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 					rtn.success = results?.success && results?.error != true
 					log.debug("listNetworks ${results}")
 					if(rtn.success) {
@@ -539,9 +542,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/servers/detail", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/servers/detail", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -568,9 +572,10 @@ class OpenStackComputeUtility {
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
 			authConfig.projectId = projectId
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-hypervisors", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-hypervisors", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -597,9 +602,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-hypervisors/${hypervisorId}", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-hypervisors/${hypervisorId}", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -627,13 +633,14 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def query = [:]
 				if(poolId) {
 					query.floating_network_id = poolId
 				}
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-floating-ips", token.token, [headers:['Content-Type':'application/json'], query: query], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-floating-ips", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json'], query: query], "GET")
 				rtn.success = results?.success && results?.error != true
 				log.debug("FLoating Ips: ${results}")
 				if(rtn.success) {
@@ -663,9 +670,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-floating-ip-pools", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-floating-ip-pools", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -692,6 +700,7 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def poolResults = listFloatingIpPools(client, authConfig, projectId)
@@ -700,7 +709,7 @@ class OpenStackComputeUtility {
 					if(foundIp == false) {
 						def poolName = pool.name
 						def body = [pool:poolName]
-						def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-floating-ips", token.token, [headers:['Content-Type':'application/json'], body:body], "POST")
+						def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/os-floating-ips", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json'], body:body], "POST")
 						log.debug("allocateFloatingIp: ${results}")
 						rtn.success = results?.success && results?.error != true
 						if(rtn.success) {
@@ -736,12 +745,13 @@ class OpenStackComputeUtility {
 		if(freeIp) {
 			def token = getToken(client, authConfig)
 			if(token.success == true) {
+				def osUrl = getOpenstackComputeUrl(authConfig)
 				def osVersion = getOpenstackComputeVersion(authConfig)
 				if(token.token && projectId) {
 					def serverId = server?.externalId
 					def body = [addFloatingIp:[address:freeIp]]
 					def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + serverId + "/action", token.token,
-							[headers:['Content-Type':'application/json'], body:body], "POST")
+							[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body], "POST")
 					log.debug("assignFloatingIp: ${results}")
 					rtn.success = results?.success && results?.error != true
 					if(rtn.success) {
@@ -875,12 +885,13 @@ class OpenStackComputeUtility {
 			authConfig.projectId = projectId
 			def token = getToken(client, authConfig)
 			if(token.success == true) {
+				def osUrl = getOpenstackComputeUrl(authConfig)
 				def osVersion = getOpenstackComputeVersion(authConfig)
 				if(token.token && projectId) {
 					def serverId = server?.externalId
 					def body = [addFloatingIp:[address:freeIp]]
 					def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + serverId + "/action", token.token,
-							[headers:['Content-Type':'application/json'], body:body], "POST")
+							[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body], "POST")
 					log.debug("assignFloatingIp: ${results}")
 					rtn.success = results?.success && results?.error != true
 					if(rtn.success) {
@@ -950,6 +961,7 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def body = [
@@ -959,6 +971,7 @@ class OpenStackComputeUtility {
 						]
 				]
 				def requestOpts = [
+						osUrl: osUrl,
 						headers: buildHeaders([:], token.token),
 						body:body
 				]
@@ -987,9 +1000,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def requestOpts = [headers: buildHeaders([:], token.token)]
+				def requestOpts = [osUrl: osUrl, headers: buildHeaders([:], token.token)]
 				def results = callApi(client, authConfig, '/' + osVersion + '/' + projectId + "/os-keypairs/" + keyName, token.token, requestOpts, "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
@@ -1014,9 +1028,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def requestOpts = [headers: buildHeaders([:], token.token)]
+				def requestOpts = [osUrl: osUrl, headers: buildHeaders([:], token.token)]
 				def results = callApi(client, authConfig, '/' + osVersion + '/' + projectId + "/os-keypairs", token.token, requestOpts, "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
@@ -1041,10 +1056,11 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				keyName = keyName ?: getGenericKeyName(authConfig.cloudId)
-				def results = callApi(client, authConfig, '/' + osVersion +'/' + projectId + "/os-keypairs/" + keyName, token.token, [headers:['Content-Type':'application/json']], "DELETE")
+				def results = callApi(client, authConfig, '/' + osVersion +'/' + projectId + "/os-keypairs/" + keyName, token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "DELETE")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					log.debug("deleteKeypair results: ${rtn.results}")
@@ -1086,12 +1102,13 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token) {
 				def body = [(action.toString()):null]
 				log.debug "Server Action ${body.encodeAsJSON()}"
 				def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/servers/${externalId}/action", token.token,
-						[headers:['Content-Type':'application/json'], body:body.encodeAsJSON().toString()], "POST")
+						[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body.encodeAsJSON().toString()], "POST")
 				rtn.success = results?.success && results?.error != true
 				rtn.results = results
 				if(rtn.success) {
@@ -1121,6 +1138,7 @@ class OpenStackComputeUtility {
 		} else if(!opts.name) {
 			rtn.error = 'Please specify a name'
 		} else {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			authConfig.projectId = projectId
 			def token = getToken(client, authConfig)
 			if(token.success == true) {
@@ -1250,7 +1268,7 @@ class OpenStackComputeUtility {
 						// using volume type on upstream openstack requires micro version header
 						headers["X-OpenStack-Nova-API-Version"] = osMicroVersion
 					}
-					def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/servers", token.token,	[headers:headers, body:body], "POST")
+					def results = callApi(client, authConfig, '/' + osVersion + "/${projectId}/servers", token.token,	[osUrl: osUrl, headers:headers, body:body], "POST")
 					rtn.success = results?.success && results?.error != true
 					if(rtn.success) {
 						rtn.results = results.data
@@ -1294,11 +1312,12 @@ class OpenStackComputeUtility {
 			authConfig.projectId = projectId
 			def token = getToken(client, authConfig)
 			if(token.success == true) {
+				def osUrl = getOpenstackComputeUrl(authConfig)
 				def osVersion = getOpenstackComputeVersion(authConfig)
 				if(token.token) {
 					def body = [rebuild:[imageRef:opts.imageId, name:opts.name]] //preserve_ephemeral:false
 					def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + '/servers/' + externalId + '/action', token.token,
-							[headers:['Content-Type':'application/json'], body:body], "POST")
+							[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body], "POST")
 					rtn.success = results?.success && results?.error != true
 					if(rtn.success) {
 						if(results.data) {
@@ -1328,10 +1347,11 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId, token.token,
-						[headers:['Content-Type':'application/json']], "GET")
+						[osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -1361,6 +1381,7 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			def body = [
 					"os-getVNCConsole": [
@@ -1375,7 +1396,7 @@ class OpenStackComputeUtility {
 			//    ]
 			// ]
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + '/action', token.token, [headers:['Content-Type':'application/json'], body:body.encodeAsJSON().toString()], "POST")
+				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + '/action', token.token, [osUrl: osUrl, headers:['Content-Type':'application/json'], body:body.encodeAsJSON().toString()], "POST")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -1403,9 +1424,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/os-availability-zone", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/os-availability-zone", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -1542,10 +1564,11 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + "/action", token.token,
-						[headers:['Content-Type':'application/json'], body:body.encodeAsJSON().toString()], "POST")
+						[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body.encodeAsJSON().toString()], "POST")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					log.debug("serverActionWithContent: ${rtn.results}")
@@ -1571,9 +1594,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/os-server-groups", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/os-server-groups", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -1631,9 +1655,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + "/os-volume_attachments", token.token, [headers:['Content-Type':'application/json']], "GET")
+				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + "/os-volume_attachments", token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "GET")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -1714,11 +1739,12 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def body = [volumeAttachment:[volumeId:opts.volumeId]]
 				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + "/os-volume_attachments", token.token,
-						[headers:['Content-Type':'application/json'], body:body], "POST")
+						[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body], "POST")
 				rtn.success = results?.success && results?.error != true
 				if(rtn.success) {
 					if(results.data) {
@@ -1780,9 +1806,10 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
-				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + "/os-volume_attachments/" + volumeId, token.token, [headers:['Content-Type':'application/json']], "DELETE")
+				def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + externalId + "/os-volume_attachments/" + volumeId, token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "DELETE")
 				rtn.success = results?.success && results?.error != true
 				if(rtn?.success == true || results.errorCode == 404) {
 					rtn.success = true
@@ -2280,11 +2307,12 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def results = [success:true]
 				if(imageId){
-					results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/images/" + imageId, token.token, [headers:['Content-Type':'application/json']], "DELETE")
+					results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/images/" + imageId, token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "DELETE")
 				}
 				if(results?.success == true || results.errorCode == 404) {
 					rtn.success = true
@@ -2306,19 +2334,20 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			if(token.token && projectId) {
 				def serverId = opts.server.externalId
 				def results = [success:true]
 				if(serverId)
-					results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + serverId, token.token, [headers:['Content-Type':'application/json']], "DELETE")
+					results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + "/servers/" + serverId, token.token, [osUrl: osUrl, headers:['Content-Type':'application/json']], "DELETE")
 				if(results?.success == true || results.errorCode == 404) {
 					def volumes = opts.server.volumes
 					if(volumes || opts.server.volumeId || opts.server.rootVolumeId){
 						sleep(10000) //wait for the server to detach the volumes - lame
 					}
 
-					def osUrl = getOpenstackStorageUrl(authConfig)
+					osUrl = getOpenstackStorageUrl(authConfig)
 					osVersion = getOpenstackStorageVersion(authConfig)
 
 					def volumeId = opts.server.volumeId
@@ -2636,12 +2665,13 @@ class OpenStackComputeUtility {
 			authConfig.projectId = projectId
 			def token = getToken(client, authConfig)
 			if(token.success == true) {
+				def osUrl = getOpenstackComputeUrl(authConfig)
 				def osVersion = getOpenstackComputeVersion(authConfig)
 				if(token.token && projectId) {
 					def body = [createImage:[ name:opts.snapshotName]]
 
 					def results = callApi(client, authConfig, '/' + osVersion + "/" + projectId + '/servers/' + opts.externalId + '/action', token.token,
-							[headers:['Content-Type':'application/json'], body:body], "POST")
+							[osUrl: osUrl, headers:['Content-Type':'application/json'], body:body], "POST")
 					rtn.success = results?.success && results?.error != true
 					if(rtn.success) {
 						if(results?.results?.image_id) {
@@ -5287,6 +5317,7 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def tokenResults = getApiToken(client, authConfig, false)
 		if(tokenResults.success && tokenResults.token && tokenResults.projectId) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			def apiPath = '/' + osVersion + "/${tokenResults.projectId}/servers/" + serverId + '/os-interface'
 			def headers = buildHeaders([:], tokenResults.token)
@@ -5311,7 +5342,7 @@ class OpenStackComputeUtility {
 				body.interfaceAttachment.fixed_ips << ipConfig
 			}
 			log.debug("create server port body: ${body}")
-			def requestOpts = [headers:headers, body:body]
+			def requestOpts = [osUrl: osUrl, headers:headers, body:body]
 			def results = callApi(client, authConfig, apiPath, null, requestOpts, 'POST')
 			log.debug("create server port results: ${results}")
 			rtn.success = results?.success && results?.error != true
@@ -5334,11 +5365,12 @@ class OpenStackComputeUtility {
 		authConfig.projectId = projectId
 		def tokenResults = getApiToken(client, authConfig, false)
 		if(tokenResults.success && tokenResults.token && tokenResults.projectId) {
+			def osUrl = getOpenstackComputeUrl(authConfig)
 			def osVersion = getOpenstackComputeVersion(authConfig)
 			def apiPath = '/' + osVersion + "/${tokenResults.projectId}/servers/" + serverId + '/os-interface/' + portId
 			def headers = buildHeaders([:], tokenResults.token)
 			//prepare
-			def requestOpts = [headers:headers]
+			def requestOpts = [osUrl: osUrl, headers:headers]
 			//execute the call
 			def results = callApi(client, authConfig, apiPath, null, requestOpts, 'DELETE')
 			log.debug("remove server port results: ${results}")
