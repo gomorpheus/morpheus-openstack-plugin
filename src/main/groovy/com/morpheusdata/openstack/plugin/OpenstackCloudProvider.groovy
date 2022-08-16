@@ -11,16 +11,19 @@ import com.morpheusdata.model.AccountCredential
 import com.morpheusdata.model.Cloud
 import com.morpheusdata.model.ComputeServer
 import com.morpheusdata.model.ComputeServerType
+import com.morpheusdata.model.ComputeZonePool
 import com.morpheusdata.model.Icon
 import com.morpheusdata.model.NetworkProxy
 import com.morpheusdata.model.NetworkType
 import com.morpheusdata.model.OptionType
+import com.morpheusdata.model.PlatformType
 import com.morpheusdata.model.StorageControllerType
 import com.morpheusdata.model.StorageVolumeType
 import com.morpheusdata.model.projection.ComputeZonePoolIdentityProjection
 import com.morpheusdata.openstack.plugin.sync.AvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.FlavorsSync
+import com.morpheusdata.openstack.plugin.sync.HostsSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.RolesSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
@@ -245,7 +248,28 @@ class OpenstackCloudProvider implements CloudProvider {
 
 	@Override
 	Collection<ComputeServerType> getComputeServerTypes() {
-		[]
+		def hypervisor = new ComputeServerType([
+				code               : 'openstack-provision-provider-pluginHypervisor',
+				name               : 'OpenStack Hypervisor',
+				description        : '',
+				platform           : PlatformType.linux,
+				nodeType           : '',
+				enabled            : true,
+				selectable         : false,
+				externalDelete     : false,
+				managed            : false,
+				controlPower       : false,
+				controlSuspend     : false,
+				creatable          : false,
+				displayOrder       : 0,
+				hasAutomation      : false,
+				containerHypervisor: false,
+				bareMetalHost      : false,
+				vmHypervisor       : true,
+				agentType          : ComputeServerType.AgentType.none,
+				provisionTypeCode  : 'openstack-provision-provider'])
+
+		[hypervisor]
 	}
 
 	@Override
@@ -563,13 +587,13 @@ class OpenstackCloudProvider implements CloudProvider {
 					authConfig.projectId = null
 					authConfig.projectName = null
 					(new RolesSync(plugin, cloud, client, authConfig)).execute()
-//					cacheProjects([account:zone.account, zone:zone,proxySettings:proxySettings])
+					(new ProjectsSync(plugin, cloud, client, authConfig)).execute()
 
 					// Use project scope
-					List<ComputeZonePoolIdentityProjection> cloudPools = []
-					morpheusContext.cloud.pool.listSyncProjections(cloud.id, '').blockingSubscribe { cloudPools << it }
+					List<ComputeZonePoolIdentityProjection> cloudPools = loadProjectsToSync(cloud)
 					for(ComputeZonePoolIdentityProjection cloudPool in cloudPools) {
-//						authConfig.projectId = cloud.externalId
+						authConfig.projectId = cloud.externalId
+						(new HostsSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 //						cacheHosts([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId])
 //						cacheImages([zone:zone, zonePool: zonePool, projectId: zonePool.externalId,proxySettings:proxySettings])
 //						cacheNetworks([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
@@ -595,7 +619,7 @@ class OpenstackCloudProvider implements CloudProvider {
 				morpheusContext.cloud.updateZoneStatus(cloud, Cloud.Status.offline, 'Openstack not reaschable', syncDate)
 			}
 		} catch(e) {
-			log.error "Error on cloud refresh for ${cloudInfo.id}"
+			log.error "Error on cloud refresh for ${cloud.id}. ${e}", e
 		} finally {
 			if(client) {
 				client.shutdownClient()
@@ -726,6 +750,17 @@ class OpenstackCloudProvider implements CloudProvider {
 		}
 
 		cloud
+	}
+
+	private List<ComputeZonePool> loadProjectsToSync(Cloud cloud) {
+		List<Long> cloudPoolIds = []
+		morpheusContext.cloud.pool.listSyncProjections(cloud.id, '').blockingSubscribe { cloudPoolIds << it.id }
+
+		List<ComputeZonePool> pools = []
+		morpheusContext.cloud.pool.listById(cloudPoolIds).filter{ ComputeZonePool pool ->
+			pool.inventory != false
+		}.blockingSubscribe { pools << it}
+		pools
 	}
 
 	private Cloud saveAndGet(Cloud cloud) {
