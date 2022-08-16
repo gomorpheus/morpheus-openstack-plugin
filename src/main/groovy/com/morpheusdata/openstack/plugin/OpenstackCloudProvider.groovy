@@ -22,6 +22,7 @@ import com.morpheusdata.openstack.plugin.sync.AvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.FlavorsSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
+import com.morpheusdata.openstack.plugin.sync.RolesSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.StorageTypesSync
 import com.morpheusdata.openstack.plugin.utils.AuthConfig
@@ -544,9 +545,55 @@ class OpenstackCloudProvider implements CloudProvider {
 			NetworkProxy proxySettings = cloud.apiProxy
 			client = new HttpApiClient()
 			client.networkProxy = proxySettings
+			Date syncDate = new Date()
+			def hostOnline = testHostConnection(cloud)
+			if(hostOnline) {
+				AuthConfig authConfig = plugin.getAuthConfig(cloud)
+				def testResults = OpenStackComputeUtility.testConnection(client, authConfig)
+				if(testResults.success == true) {
+					cloud = checkCloudConfig(cloud)
+					if (cloud.lastSync != null) {
+						def endpointResults = (new EndpointsSync(plugin, cloud, client, authConfig)).execute()
+						if (endpointResults.success) {
+							cloud = saveAndGet(cloud)
+						}
+					}
 
+					// Don't use project scope
+					authConfig.projectId = null
+					authConfig.projectName = null
+					(new RolesSync(plugin, cloud, client, authConfig)).execute()
+//					cacheProjects([account:zone.account, zone:zone,proxySettings:proxySettings])
 
-			rtn = ServiceResponse.success()
+					// Use project scope
+					List<ComputeZonePoolIdentityProjection> cloudPools = []
+					morpheusContext.cloud.pool.listSyncProjections(cloud.id, '').blockingSubscribe { cloudPools << it }
+					for(ComputeZonePoolIdentityProjection cloudPool in cloudPools) {
+//						authConfig.projectId = cloud.externalId
+//						cacheHosts([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId])
+//						cacheImages([zone:zone, zonePool: zonePool, projectId: zonePool.externalId,proxySettings:proxySettings])
+//						cacheNetworks([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
+//						cacheSubnets([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
+//						cacheSecurityGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
+//						cacheServerGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
+//						cacheRouters([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
+//						cacheFloatingIpPools([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
+//						cacheFloatingIps([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
+//						cacheNetworkAvailablityZones([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
+//						def importVms = MorpheusUtils.parseBooleanConfig(zone.getConfigProperty('importExisting'))
+//						cacheVirtualMachines([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, createNew:importVms, proxySettings:proxySettings])
+					}
+					rtn.success = true
+				} else {
+					if(testResults.invalidLogin == true) {
+						morpheusContext.cloud.updateZoneStatus(cloud, Cloud.Status.error, 'invalid credentials', syncDate)
+					} else {
+						morpheusContext.cloud.updateZoneStatus(cloud, Cloud.Status.error, 'error connecting', syncDate)
+					}
+				}
+			} else {
+				morpheusContext.cloud.updateZoneStatus(cloud, Cloud.Status.offline, 'Openstack not reaschable', syncDate)
+			}
 		} catch(e) {
 			log.error "Error on cloud refresh for ${cloudInfo.id}"
 		} finally {
