@@ -257,8 +257,9 @@ class OpenStackComputeUtility {
 		return rtn
 	}
 
-	static listImages(HttpApiClient client, AuthConfig authConfig) {
+	static listImages(HttpApiClient client, AuthConfig authConfig, String projectId) {
 		def rtn = [success:false, results:[:]]
+		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		log.debug "listImages"
 		if(token.success == true) {
@@ -4158,12 +4159,12 @@ class OpenStackComputeUtility {
 		return extension
 	}
 
-	protected static retrieveImages(HttpApiClient client, AuthConfig authConfig, String projectId, opts) {
+	protected static retrieveImages(HttpApiClient client, AuthConfig authConfig, opts) {
 		def rtn = [success:false]
 		log.debug "retrieveImages opts: ${opts}"
 		def path = opts.path ?: '/' + opts.osVersion + "/images"
 		path = path.trim()
-		def customOpts = [:]
+		def customOpts = [osUrl: opts.osUrl]
 		customOpts.headers = ['Content-Type':'application/json']
 		if(opts.query) {
 			customOpts.query = opts.query
@@ -4190,7 +4191,7 @@ class OpenStackComputeUtility {
 			}
 		} else if(results.error == UNAUTHORIZED_ERROR && !authConfig.expireToken) {
 			authConfig.expireToken = true
-			return retrieveImages(client, authConfig, projectId, opts)
+			return retrieveImages(client, authConfig, opts)
 		}
 		rtn
 	}

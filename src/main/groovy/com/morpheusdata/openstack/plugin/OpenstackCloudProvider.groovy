@@ -24,6 +24,7 @@ import com.morpheusdata.openstack.plugin.sync.AvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.FlavorsSync
 import com.morpheusdata.openstack.plugin.sync.HostsSync
+import com.morpheusdata.openstack.plugin.sync.ImagesSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.RolesSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
@@ -191,7 +192,7 @@ class OpenstackCloudProvider implements CloudProvider {
 				code: 'openstack-plugin-endpoint-storage-api',
 				fieldName: 'storageApi',
 				displayOrder: 220,
-				fieldLabel: 'Image Service',
+				fieldLabel: 'Storage Service',
 				required: false,
 				inputType: OptionType.InputType.TEXT,
 				fieldContext: 'config',
@@ -594,8 +595,7 @@ class OpenstackCloudProvider implements CloudProvider {
 					for(ComputeZonePoolIdentityProjection cloudPool in cloudPools) {
 						authConfig.projectId = cloud.externalId
 						(new HostsSync(plugin, cloud, client, authConfig, cloudPool)).execute()
-//						cacheHosts([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId])
-//						cacheImages([zone:zone, zonePool: zonePool, projectId: zonePool.externalId,proxySettings:proxySettings])
+						(new ImagesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 //						cacheNetworks([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
 //						cacheSubnets([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
 //						cacheSecurityGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
