@@ -25,6 +25,7 @@ import com.morpheusdata.openstack.plugin.sync.EndpointsSync
 import com.morpheusdata.openstack.plugin.sync.FlavorsSync
 import com.morpheusdata.openstack.plugin.sync.HostsSync
 import com.morpheusdata.openstack.plugin.sync.ImagesSync
+import com.morpheusdata.openstack.plugin.sync.NetworksSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.RolesSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
@@ -290,9 +291,91 @@ class OpenstackCloudProvider implements CloudProvider {
 
 	@Override
 	Collection<NetworkType> getNetworkTypes() {
-		[]
+		NetworkType openstackPrivate = new NetworkType([
+				code:'openstack-provision-provider-pluginPrivate',
+				category:'openstack',
+				name:'OpenStack Private Network',
+				description:'',
+				overlay:false,
+				creatable:true,
+				nameEditable:true,
+				cidrEditable:false,
+				dhcpServerEditable:true,
+				dnsEditable:true,
+				gatewayEditable:true,
+				vlanIdEditable:false,
+				canAssignPool:true,
+				deletable:true,
+				hasNetworkServer:true,
+				hasCidr:true,
+				cidrRequired:true,
+				optionTypes:
+					[
+						new OptionType(code:'openstack.plugin.network.openstack.zonePool', inputType: OptionType.InputType.SELECT, name:'zonePool', optionSource:'zonePoolsId',
+							category:'network.openstack', fieldName:'zonePool.id', fieldCode:'gomorpheus.label.resourcePool', fieldContext:'domain',
+							required:true, enabled:true, editable:false, global:false, placeHolder:null, helpBlock:'', defaultValue:null, custom:false,
+							displayOrder:5, fieldClass:null, wrapperClass:null, dependsOnCode:'network.networkServer.id', showOnEdit: true,
+							ownerEditable:true, tenantEditable:false),
+					] + getCommonNetworkOptionTypes()
+				])
+
+		def openstackFlat = new NetworkType(code:'openstack-provision-provider-pluginFlat', category:'openstack', name:'OpenStack Flat', description:'', overlay:false, externalType:'flat',
+				creatable:false, nameEditable:false, cidrEditable:true, dhcpServerEditable:true, dnsEditable:true, gatewayEditable:true, vlanIdEditable:true, cidrRequired:true,
+				canAssignPool:true, deletable:false, hasNetworkServer:true, hasCidr:true)
+		def vxlan = new NetworkType(code:'openstack-provision-provider-pluginVxlan', category:'openstack', name:'OpenStack Vxlan', description:'', overlay:false, externalType:'vxlan',
+				creatable:false, nameEditable:true, cidrEditable:true, dhcpServerEditable:true, dnsEditable:true, gatewayEditable:true, vlanIdEditable:true,
+				canAssignPool:true, deletable:true, hasNetworkServer:true, hasCidr:true, cidrRequired:true,
+				optionTypes: getCommonNetworkOptionTypes() + getVxlanOptionTypes())
+		def gre = new NetworkType(code:'openstack-provision-provider-pluginGre', category:'openstack', name:'OpenStack Gre', description:'', overlay:false, externalType:'gre',
+				creatable:false, nameEditable:true, cidrEditable:true, dhcpServerEditable:true, dnsEditable:true, gatewayEditable:true, vlanIdEditable:true,
+				canAssignPool:true, deletable:true, hasNetworkServer:true, hasCidr:true, cidrRequired:true,
+				optionTypes:getCommonNetworkOptionTypes() + getVxlanOptionTypes())
+
+		[openstackPrivate, openstackFlat, vxlan, gre]
 	}
 
+	private List<OptionType> getCommonNetworkOptionTypes() {
+		[
+			new OptionType(code:'openstack.plugin.network.cidr', inputType:OptionType.InputType.TEXT, name:'cidr',
+				category:'network.global', fieldName:'cidr', fieldLabel:'cidr', fieldContext:'domain', required:true, enabled:true,
+				editable:true, global:false, placeHolder:null, helpBlock:'', defaultValue:null, custom:false, displayOrder:40, fieldClass:null,
+				wrapperClass:null, fieldCode:'gomorpheus.infrastructure.network.cidr',
+				fieldComponent:'network', ownerEditable:true, tenantEditable:false),
+			new OptionType(code:'openstack.plugin.network.gateway', inputType:OptionType.InputType.TEXT, name:'gateway',
+					category:'network.global', fieldName:'gateway', fieldLabel:'gateway', fieldContext:'domain', required:false, enabled:true,
+					editable:true, global:false, placeHolder:null, helpBlock:'', defaultValue:null, custom:false, displayOrder:15, fieldClass:null,
+					wrapperClass:null, fieldCode:'gomorpheus.infrastructure.network.gateway',
+					fieldComponent:'network', ownerEditable:true, tenantEditable:false),
+			new OptionType(code:'openstack.plugin.network.dnsPrimary', inputType:OptionType.InputType.TEXT, name:'dnsPrimary',
+					category:'network.global', fieldName:'dnsPrimary', fieldLabel:'Primary DNS', fieldContext:'domain', required:false, enabled:true,
+					editable:true, global:false, placeHolder:null, helpBlock:'', defaultValue:null, custom:false, displayOrder:20, fieldClass:null,
+					wrapperClass:null, fieldCode:'gomorpheus.infrastructure.network.primaryDNS',
+					fieldComponent:'network', ownerEditable:true, tenantEditable:false),
+			new OptionType(code:'openstack.plugin.network.global.dnsSecondary', inputType:OptionType.InputType.TEXT, name:'dnsSecondary',
+					category:'network.global', fieldName:'dnsSecondary', fieldLabel:'Secondary DNS', fieldContext:'domain', required:false, enabled:true,
+					editable:true, global:false, placeHolder:null, helpBlock:'', defaultValue:null, custom:false, displayOrder:25, fieldClass:null,
+					wrapperClass:null, fieldCode:'gomorpheus.infrastructure.network.secondaryDNS',
+					fieldComponent:'network', ownerEditable:true, tenantEditable:false),
+			new OptionType(code:'openstack.plugin.network.dhcpRange', inputType:OptionType.InputType.TEXT, name:'dhcpRange', showOnEdit: true,
+					category:'network.global', fieldName:'dhcpRange', fieldLabel:'DHCP Allocation', fieldContext:'config', required:false, enabled:true,
+					editable:true, global:false, placeHolder:'x.x.x.x,x.x.x.x', helpBlock:'', defaultValue:null, custom:false, displayOrder:35, fieldClass:null,
+					wrapperClass:null, fieldCode:'gomorpheus.infrastructure.network.dhcpAllocation'),
+			new OptionType(code:'openstack.plugin.network.hostRoutes', inputType:OptionType.InputType.TEXT, name:'hostRoutes', showOnEdit: true,
+					category:'network.global', fieldName:'hostRoutes', fieldCode: 'gomorpheus.optiontype.HostRoutes', fieldLabel:'Host Routes', fieldContext:'config', required:false, enabled:true,
+					editable:false, global:false, placeHolder:'x.x.x.x,x.x.x.x', helpBlock:'', defaultValue:null, custom:false, displayOrder:40, fieldClass:null,
+					ownerEditable:true, tenantEditable:false)
+		]
+	}
+
+	private getVxlanOptionTypes() {
+		[
+			new OptionType(code:'network.openstack.vxlanId', inputType:OptionType.InputType.TEXT, name:'vxlanId',
+					category:'network.openstack', fieldName:'vxlanId', fieldLabel:'Segment Id', fieldContext:'domain', required:true, enabled:true,
+					editable:false, global:false, placeHolder:null, helpBlock:'', defaultValue:null, custom:false, displayOrder:6, fieldClass:null,
+					wrapperClass:null, fieldCode:'gomorpheus.infrastructure.network.segmentId',
+					ownerEditable:true, tenantEditable:false)
+		]
+	}
 	@Override
 	Collection<StorageVolumeType> getStorageVolumeTypes() {
 
@@ -596,7 +679,7 @@ class OpenstackCloudProvider implements CloudProvider {
 						authConfig.projectId = cloud.externalId
 						(new HostsSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 						(new ImagesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
-//						cacheNetworks([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
+						(new NetworksSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 //						cacheSubnets([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
 //						cacheSecurityGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
 //						cacheServerGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])

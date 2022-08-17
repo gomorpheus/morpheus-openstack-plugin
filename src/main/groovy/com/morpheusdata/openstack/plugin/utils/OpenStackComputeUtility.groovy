@@ -224,8 +224,9 @@ class OpenStackComputeUtility {
 		return rtn
 	}
 
-	static listSubnets(HttpApiClient client, AuthConfig authConfig, networkId) {
+	static listSubnets(HttpApiClient client, AuthConfig authConfig, String projectId, networkId) {
 		def rtn = [success:false]
+		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
 		if(token.success == true) {
 			def osUrl = getOpenstackNetworkUrl(authConfig)
@@ -237,7 +238,7 @@ class OpenStackComputeUtility {
 					if(networkId) {
 						query.network_id = networkId
 					}
-					def results = callApi(client, authConfig, '/' + osVersion + '/subnets', token.token, [headers:headers, query:query], "GET")
+					def results = callApi(client, authConfig, '/' + osVersion + '/subnets', token.token, [osUrl: osUrl, headers:headers, query:query], "GET")
 					rtn.success = results?.success && results?.error != true
 					log.debug("listSubnets ${results}")
 					if(rtn.success) {
