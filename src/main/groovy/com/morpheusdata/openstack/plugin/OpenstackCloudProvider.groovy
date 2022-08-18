@@ -14,6 +14,7 @@ import com.morpheusdata.model.ComputeServerType
 import com.morpheusdata.model.ComputeZonePool
 import com.morpheusdata.model.Icon
 import com.morpheusdata.model.NetworkProxy
+import com.morpheusdata.model.NetworkSubnetType
 import com.morpheusdata.model.NetworkType
 import com.morpheusdata.model.OptionType
 import com.morpheusdata.model.PlatformType
@@ -30,6 +31,7 @@ import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.RolesSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.StorageTypesSync
+import com.morpheusdata.openstack.plugin.sync.SubnetsSync
 import com.morpheusdata.openstack.plugin.utils.AuthConfig
 import com.morpheusdata.openstack.plugin.utils.OpenStackComputeUtility
 import com.morpheusdata.request.ValidateCloudRequest
@@ -332,6 +334,13 @@ class OpenstackCloudProvider implements CloudProvider {
 				optionTypes:getCommonNetworkOptionTypes() + getVxlanOptionTypes())
 
 		[openstackPrivate, openstackFlat, vxlan, gre]
+	}
+
+	@Override
+	Collection<NetworkSubnetType> getSubnetTypes() {
+		def openstack = new NetworkSubnetType(code:'openstack-plugin-cloud', name:'OpenStack Subnet', description:'', creatable:false, deletable:false, dhcpServerEditable:false,
+				canAssignPool:false, vlanIdEditable:false, cidrEditable:false, cidrRequired:false)
+		[openstack]
 	}
 
 	private List<OptionType> getCommonNetworkOptionTypes() {
@@ -680,7 +689,7 @@ class OpenstackCloudProvider implements CloudProvider {
 						(new HostsSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 						(new ImagesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 						(new NetworksSync(plugin, cloud, client, authConfig, cloudPool)).execute()
-//						cacheSubnets([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
+						(new SubnetsSync(plugin, cloud, client, authConfig, cloudPool, syncDate)).execute()
 //						cacheSecurityGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
 //						cacheServerGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
 //						cacheRouters([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()

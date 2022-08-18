@@ -224,7 +224,7 @@ class OpenStackComputeUtility {
 		return rtn
 	}
 
-	static listSubnets(HttpApiClient client, AuthConfig authConfig, String projectId, networkId) {
+	static listSubnets(HttpApiClient client, AuthConfig authConfig, String projectId, networkId=null) {
 		def rtn = [success:false]
 		authConfig.projectId = projectId
 		def token = getToken(client, authConfig)
