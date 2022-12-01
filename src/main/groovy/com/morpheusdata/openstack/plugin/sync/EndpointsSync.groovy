@@ -30,6 +30,7 @@ class EndpointsSync {
 		log.debug "BEGIN: execute EndpointsSync: ${cloud.id}"
 		def rtn = [success:false]
 		try {
+			authConfig.expireToken = true
 			def token = OpenStackComputeUtility.getToken(apiClient, authConfig)
 			if (token.token) {
 				rtn = OpenStackComputeUtility.setEndpoints(cloud, apiClient, authConfig, token.osVersion, token.results)

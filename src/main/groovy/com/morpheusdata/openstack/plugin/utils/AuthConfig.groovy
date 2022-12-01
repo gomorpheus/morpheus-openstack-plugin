@@ -17,11 +17,15 @@ public class AuthConfig {
 	public String networkVersion
 	public String networkPath
 	public String loadBalancerUrl
+	public Object token
+	public String apiProjectId
+	public String apiUserId
+	public String expires
 	public Boolean expireToken // whether the token should be expired
 	public TokenResult tokenResult // The token for the auth config specified in the other properties
 
 	@Override
 	public String toString(){
-		"cloudId: ${cloudId}, projectId: ${projectId}, projectName; ${projectName}, identityUrl: ${identityUrl}, identityVersion: ${identityVersion}, domainId: ${domainId}, cloudConfig: ${cloudConfig}"
+		"cloudId: ${cloudId}, projectId: ${projectId}, projectName; ${projectName}, identityUrl: ${identityUrl}, identityVersion: ${identityVersion}, domainId: ${domainId}, cloudConfig: ${cloudConfig}, apiUserId: ${apiUserId}, expires: ${expires}"
 	}
 }

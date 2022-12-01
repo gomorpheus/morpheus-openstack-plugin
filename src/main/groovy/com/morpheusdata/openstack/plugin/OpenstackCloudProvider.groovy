@@ -29,6 +29,7 @@ import com.morpheusdata.openstack.plugin.sync.ImagesSync
 import com.morpheusdata.openstack.plugin.sync.NetworksSync
 import com.morpheusdata.openstack.plugin.sync.ProjectsSync
 import com.morpheusdata.openstack.plugin.sync.RolesSync
+import com.morpheusdata.openstack.plugin.sync.SecurityGroupSync
 import com.morpheusdata.openstack.plugin.sync.StorageAvailabilityZonesSync
 import com.morpheusdata.openstack.plugin.sync.StorageTypesSync
 import com.morpheusdata.openstack.plugin.sync.SubnetsSync
@@ -576,7 +577,7 @@ class OpenstackCloudProvider implements CloudProvider {
 
 		try {
 			initializeCloudServices(cloud)
-			initializeCloudConfig(cloud)
+			cloud = initializeCloudConfig(cloud)
 			//sync
 			initializeCloudCache(cloud)
 			refreshDaily(cloud)
@@ -598,6 +599,7 @@ class OpenstackCloudProvider implements CloudProvider {
 	def initializeCloudConfig(Cloud cloud) {
 		log.debug "initializeCloudConfig: ${cloud.id}"
 		HttpApiClient client
+		Cloud rtn = cloud
 		try {
 			def configMap = cloud.getConfigMap()
 			configMap.identityVersion = OpenStackComputeUtility.parseEndpointVersion(cloud.serviceUrl) ?: 'v3'
@@ -610,13 +612,31 @@ class OpenstackCloudProvider implements CloudProvider {
 				client = new HttpApiClient()
 				client.networkProxy = proxySettings
 
-				AuthConfig authConfig = plugin.getAuthConfig(cloud, true)
+				// Fetch the token to set some API level config
+				AuthConfig authConfig = plugin.getAuthConfig(cloud, true, true)
+				authConfig.expireToken = true
+				def token = OpenStackComputeUtility.getToken(client, authConfig)
+				if(token.token) {
+					configMap.token = token.token
+					configMap.apiProjectId = token.apiProjectId
+					configMap.apiDomainId = token.apiDomainId
+					configMap.apiUserId = token.apiUserId
+					cloud.setConfigMap(configMap)
+					morpheus.cloud.save(cloud).blockingGet()
+					cloud = morpheus.cloud.getCloudById(cloud.id).blockingGet()
+				}
+
+				// Rebuild the authConfig and sync the endpoints
+				authConfig = plugin.getAuthConfig(cloud, true)
 				def endpointResults = (new EndpointsSync(plugin, cloud, client, authConfig)).execute()
 				if (endpointResults.success) {
 					morpheus.cloud.save(cloud).blockingGet()
 				} else {
 					log.error "Error connecting to Openstack provider: ${cloud.id}"
 				}
+			}
+			if(cloud.id) {
+				rtn = morpheus.cloud.getCloudById(cloud.id).blockingGet()
 			}
 		} catch(e) {
 			log.error "Exception in initializeCloudConfig ${cloud.id} : ${e}", e
@@ -625,6 +645,7 @@ class OpenstackCloudProvider implements CloudProvider {
 				client.shutdownClient()
 			}
 		}
+		return rtn
 	}
 
 	def initializeCloudCache(Cloud cloud) {
@@ -659,6 +680,8 @@ class OpenstackCloudProvider implements CloudProvider {
 		HttpApiClient client
 
 		try {
+			cloud = morpheus.cloud.getCloudById(cloud.id).blockingGet()
+
 			NetworkProxy proxySettings = cloud.apiProxy
 			client = new HttpApiClient()
 			client.networkProxy = proxySettings
@@ -690,6 +713,7 @@ class OpenstackCloudProvider implements CloudProvider {
 						(new ImagesSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 						(new NetworksSync(plugin, cloud, client, authConfig, cloudPool)).execute()
 						(new SubnetsSync(plugin, cloud, client, authConfig, cloudPool, syncDate)).execute()
+						(new SecurityGroupSync(plugin, cloud, client, authConfig, cloudPool, syncDate)).execute()
 //						cacheSecurityGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
 //						cacheServerGroups([zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings])
 //						cacheRouters([account:zone.account, zone:zone, zonePool: zonePool, projectId: zonePool.externalId, proxySettings:proxySettings]).get()
@@ -733,13 +757,14 @@ class OpenstackCloudProvider implements CloudProvider {
 			if(hostOnline) {
 				cloud = checkCloudConfig(cloud)
 				morpheus.cloud.updateZoneStatus(cloud, Cloud.Status.syncing, null, syncDate)
-				cloud = cacheApiMicroVersions(cloud)
-				def cloudPools = []
-				morpheus.cloud.pool.listSyncProjections(cloud.id, '').blockingSubscribe { cloudPools << it }
 
 				NetworkProxy proxySettings = cloud.apiProxy
 				client = new HttpApiClient()
 				client.networkProxy = proxySettings
+
+				cloud = cacheApiMicroVersions(cloud, client)
+				def cloudPools = []
+				morpheus.cloud.pool.listSyncProjections(cloud.id, '').blockingSubscribe { cloudPools << it }
 
 				for(ComputeZonePoolIdentityProjection cloudPool in cloudPools) {
 					AuthConfig authConfig = plugin.getAuthConfig(cloud)
@@ -801,12 +826,13 @@ class OpenstackCloudProvider implements CloudProvider {
 		return checksum.encodeHex().toString()
 	}
 
-	def Cloud cacheApiMicroVersions(Cloud cloud) {
+	def Cloud cacheApiMicroVersions(Cloud cloud, client) {
 		def account = cloud.account
 		try {
 			def doSave = false
 			def cloudConfigMap = cloud.getConfigMap()
 			def serviceNames = ['Compute', 'Image', 'Storage', 'Network', 'LoadBalancer', 'ObjectStorage', 'SharedFileSystem']
+			AuthConfig authConfig = plugin.getAuthConfig(cloud)
 			for(serviceName in serviceNames) {
 				try {
 					// uses the override version in the zone config if it exists.
@@ -814,13 +840,13 @@ class OpenstackCloudProvider implements CloudProvider {
 					def apiUrl
 					def apiVersion
 					try {
-						apiUrl = OpenStackComputeUtility."getOpenstack${serviceName}Url"(cloud)
-						apiVersion = OpenStackComputeUtility."getOpenstack${serviceName}Version"(cloud)
+						apiUrl = OpenStackComputeUtility."getOpenstack${serviceName}Url"(authConfig)
+						apiVersion = OpenStackComputeUtility."getOpenstack${serviceName}Version"(authConfig)
 					} catch(Exception e3) {
 						// api url isn't set, ignore
 					}
-					if(apiUrl) {
-						def currentMicroVersion =  OpenStackComputeUtility.fetchApiMicroVersion(apiUrl, apiVersion)
+					if(apiUrl && apiUrl instanceof String) {
+						def currentMicroVersion =  OpenStackComputeUtility.fetchApiMicroVersion(client, authConfig, apiUrl, apiVersion)
 						if(existingMicroVersion != currentMicroVersion) {
 							cloudConfigMap["${serviceName}MicroVersion"] = currentMicroVersion
 							doSave = true

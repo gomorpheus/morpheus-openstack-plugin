@@ -49,7 +49,7 @@ class OpenstackPlugin extends Plugin {
 	 * @param cloud
 	 * @return
 	 */
-	AuthConfig getAuthConfig(Cloud cloud, skipAdditionalConfig=false) {
+	AuthConfig getAuthConfig(Cloud cloud, skipAdditionalConfig=false, skipCache=false) {
 		log.debug "getAuthConfig: ${cloud}"
 		def identityUrl = OpenStackComputeUtility.parseEndpoint(cloud.serviceUrl)
 		def identityVersion = OpenStackComputeUtility.parseEndpointVersion(cloud.serviceUrl, false, 'v3')
@@ -88,6 +88,16 @@ class OpenstackPlugin extends Plugin {
 			rtn.password = cloud.accountCredentialData['password']
 		} else {
 			rtn.password = cloud.servicePassword
+		}
+
+		if(!skipCache) {
+			def cachedToken = OpenStackComputeUtility.getCachedApiToken(cloud.id, cloud.getConfigProperty("projectId"))
+			if (cachedToken) {
+				rtn.token = cachedToken.token
+				rtn.apiProjectId = cachedToken.projectId // implicit project scoping, adapts to request project scope
+				rtn.apiUserId = cachedToken.userId
+				rtn.expires = cachedToken.expires
+			}
 		}
 
 		if(!skipAdditionalConfig) {

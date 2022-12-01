@@ -350,7 +350,7 @@ class OpenStackComputeUtility {
 			def osVersion = authConfig.identityVersion ?: getOpenstackIdentityVersion(authConfig)
 			if(!osVersion.startsWith('v2') && !osVersion.startsWith('v1')) {
 				def headers = buildHeaders([:])
-				def query = [is_domain:false, enabled:true]
+				def query = [is_domain:'false', enabled:'true']
 				if(token.apiDomainId) {
 					query.domain_id = token.apiDomainId
 				}
@@ -473,6 +473,7 @@ class OpenStackComputeUtility {
 	}
 
 	static listUserRoleAssignments(HttpApiClient client, AuthConfig authConfig, String userId) {
+		log.debug "listUserRoleAssignments: ${userId}"
 		def rtn = [success:false, data:[:]]
 		getApiToken(client, authConfig, true)
 		if(authConfig.tokenResult) {
@@ -3674,8 +3675,14 @@ class OpenStackComputeUtility {
 				opts.headers.'X-Auth-Token' = token
 				opts.headers.'User-Agent' = 'Mozilla/5.0 Ubuntu/8.10 Firefox/3.0.4 Morpheus'
 			}
+			def query = [:]
+			if(opts.query) {
+				opts.query?.each { k,v ->
+					query[k] = v.toString()
+				}
+			}
 			rtn = client.callJsonApi(osUrl, path, authConfig.username, authConfig.password,
-					new HttpApiClient.RequestOptions(headers: opts.headers, body:opts.body, contentType: ContentType.APPLICATION_JSON, ignoreSSL: true), method.toString())
+					new HttpApiClient.RequestOptions(headers: opts.headers, body:opts.body, queryParams: query, contentType: ContentType.APPLICATION_JSON, ignoreSSL: true), method.toString())
 			if(rtn.errorCode == '401') {
 				rtn.error = UNAUTHORIZED_ERROR
 			} else if(rtn.errorCode && !rtn.error) {
@@ -3893,7 +3900,7 @@ class OpenStackComputeUtility {
 		log.debug "fetchApiMicroVersion: ${apiUrl} ${apiVersion}"
 		try {
 			def token = getToken(client, authConfig)
-			def apiVersionResults = callApi(client, authConfig, apiVersion, token.token, [osUrl: apiUrl], 'GET')
+			def apiVersionResults = callApi(client, authConfig, null, token.token, [osUrl: apiUrl], 'GET')
 			if(apiVersionResults.success) {
 				rtn = apiVersionResults.data.versions.find { it.id == apiVersion }?.version
 				if(!rtn && !apiVersion?.contains(".")) {
@@ -4162,7 +4169,7 @@ class OpenStackComputeUtility {
 
 	protected static retrieveImages(HttpApiClient client, AuthConfig authConfig, opts) {
 		def rtn = [success:false]
-		log.debug "retrieveImages opts: ${opts}"
+		log.debug "retrieveImages expireToken: ${authConfig.expireToken}, opts: ${opts}"
 		def path = opts.path ?: '/' + opts.osVersion + "/images"
 		path = path.trim()
 		def customOpts = [osUrl: opts.osUrl]

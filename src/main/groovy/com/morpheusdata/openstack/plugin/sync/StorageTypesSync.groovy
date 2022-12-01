@@ -62,7 +62,7 @@ class StorageTypesSync {
 				// volume type is only supported in nova api, since the volume types are currently only used for provisioning and there
 				// are no simple ways to adjust the UI as needed per cloud, just clear out volume types if they can't be used on this cloud
 				// TODO: remove this after the UI is adjusted
-				if(processData.apiMicroVersion && MorpheusUtils.compareVersions(processData.apiMicroVersion, '2.67') < 0) {
+				if(processData.apiMicroVersion && MorpheusUtils.compareVersions(processData.apiMicroVersion.toString(), '2.67') < 0) {
 					processData.listResults = []
 				}
 

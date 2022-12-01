@@ -1,7 +1,11 @@
 buildscript {
     repositories {
         mavenLocal()
+	    mavenCentral()
         maven { url "https://plugins.gradle.org/m2/" }
+	    maven { url "https://nexus.bertramlabs.com/content/repositories/snapshots" }
+	    maven { url "https://nexus.bertramlabs.com/content/repositories/releases" }
+	    maven { url "https://nexus.bertramlabs.com/content/repositories/publicReleases" }
     }
     dependencies {
         classpath "com.github.jengelman.gradle.plugins:shadow:6.0.0"
@@ -10,71 +14,36 @@ buildscript {
     }
 }
 
-
-plugins {
-    id 'signing'
-}
-
-ext {
-    isBuildSnapshot = version.endsWith('-SNAPSHOT')
-    isReleaseVersion = !isBuildSnapshot
-}
-
-
-
-group = 'com.morpheusdata'
-
 apply plugin: 'java'
 apply plugin: 'groovy'
 apply plugin: 'idea'
-apply plugin: 'maven-publish'
 apply plugin: 'asset-pipeline'
 apply plugin: 'com.github.johnrengelman.shadow'
 
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
-
-if (isReleaseVersion) {
-    apply plugin: "io.github.gradle-nexus.publish-plugin"
-    nexusPublishing {
-        repositories {
-            sonatype {
-                if(project.hasProperty('mavenMorpheusUser')) {
-                    username = mavenMorpheusUser
-                    password = mavenMorpheusPassword
-                }   
-            }
-        }
-    }
-} else {
-    publishing {
-        repositories {
-            maven {
-                url = "http://nexus.bertramlabs.com/content/repositories/snapshots"
-                if(project.hasProperty('labsNexusUser')) {
-                    credentials {
-                        username = labsNexusUser
-                        password = labsNexusPassword
-                    }
-                }
-            }
-        }
-    }
-}
+group = 'com.morpheusdata'
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 repositories {
-    mavenLocal()
-    mavenCentral()
+	mavenLocal()
+	jcenter()
+	mavenCentral()
+	maven { url "https://nexus.bertramlabs.com/content/repositories/snapshots" }
+	maven { url "https://nexus.bertramlabs.com/content/repositories/releases" }
+	maven { url "https://nexus.bertramlabs.com/content/repositories/publicReleases" }
+}
+
+configurations {
+	provided
 }
 
 dependencies {
-	compileOnly 'com.morpheusdata:morpheus-plugin-api:0.13.4-SNAPSHOT'
-	compileOnly "org.codehaus.groovy:groovy-all:$groovyVersion"
+	provided 'com.morpheusdata:morpheus-plugin-api:0.13.5-SNAPSHOT'
+	provided "org.codehaus.groovy:groovy-all:$groovyVersion"
 	implementation("com.bertramlabs.plugins:karman-core:${karmanVersion}") {
 		exclude module: 'groovy-all'
 	}
 	implementation 'org.apache.commons:commons-compress:1.21'
-    implementation 'commons-logging:commons-logging:1.1.1'
+	implementation 'commons-beanutils:commons-beanutils:1.9.3'
 	implementation 'org.apache.httpcomponents:httpclient:4.5.13'
 	implementation 'org.apache.httpcomponents:httpmime:4.5.13'
 	implementation 'org.apache.httpcomponents:httpasyncclient:4.1.4'
@@ -84,20 +53,16 @@ dependencies {
 	}
     testImplementation "org.codehaus.groovy:groovy-all:$groovyVersion"
     testImplementation "org.spockframework:spock-core:$spockVersion"
-	testImplementation 'com.morpheusdata:morpheus-plugin-api:0.13.2-SNAPSHOT'
+	testImplementation 'com.morpheusdata:morpheus-plugin-api:0.13.5-SNAPSHOT'
 	testImplementation 'io.reactivex.rxjava2:rxjava:2.2.0'
 	testImplementation "org.slf4j:slf4j-nop:$slf4jVersion"
 	testImplementation "org.slf4j:slf4j-parent:$slf4jVersion"
 	testImplementation 'net.bytebuddy:byte-buddy:1.9.3'
 }
 
-configurations {
-
-}
-
 sourceSets {
 	main {
-		compileClasspath //+= configurations.provided
+		compileClasspath += configurations.provided
 	}
 }
 
@@ -105,73 +70,24 @@ jar {
 	manifest {
 		attributes(
 				'Plugin-Class': 'com.morpheusdata.openstack.plugin.OpenstackPlugin',
-				'Plugin-Version': version
+				'Plugin-Version': version,
+				'Morpheus-Name': 'Openstack',
+				'Morpheus-Organization': 'morpheus',
+				'Morpheus-Code': 'openstack-plugin',
+				'Morpheus-Description': 'Plugin for Openstack',
+				'Morpheus-Logo': 'assets/openstack-plugin.svg',
+				'Morpheus-Logo-Dark': 'assets/openstack-plugin-dark.svg',
+				'Morpheus-Color': '#ffffff',
+				'Morpheus-Labels': 'Plugin, Cloud',
+				'Morpheus-Repo': 'https://github.com/gomorpheus/morpheus-openstack-plugin',
+				'Morpheus-Min-Appliance-Version': "5.5.2"
 		)
 	}
 }
 
-java {
-	withSourcesJar()
-	withJavadocJar()
-}
-
-//task morpheusJavaDoc(type: Javadoc) {
-//	source = sourceSets.main.allJava
-//	title = "Morpheus Core Docs"
-//}
-
 task(console, dependsOn: 'classes', type: JavaExec) {
 	main = 'groovy.ui.Console'
 	classpath = sourceSets.main.runtimeClasspath
-}
-
-publishing {
-	publications {
-		maven(MavenPublication) {
-			artifactId 'morpheus-openstack-plugin'
-			pom.withXml {
-				asNode().children().last() + {
-					resolveStrategy = Closure.DELEGATE_FIRST
-					name 'morpheus-openstack-plugin'
-					description 'Openstack Plugin'
-					url 'https://github.com/'
-					scm {
-						url 'https://github.com/bertramdev/morpheus-openstack-plugin'
-						connection 'scm:https://bertramdev@github.com/gomorpheus/morpheus-core.git'
-						developerConnection 'scm:git://github.com/gomorpheus/morpheus-core.git'
-					}
-					licenses {
-						license {
-							name 'The Apache Software License, Version 2.0'
-							url 'http://www.apache.org/license/LICENSE-2.0.txt'
-							distribution 'repo'
-						}
-					}
-					developers {
-						developer {
-							id 'bwhiton'
-							name 'Bob Whiton'
-							email 'bwhiton@morpheusdata.com'
-						}
-					}
-				}
-			}
-			from components.java
-		}
-	}
-	repositories {
-		maven {
-			if( !isReleaseVersion ) {
-				url = "http://nexus.bertramlabs.com/content/repositories/snapshots"
-				if(project.hasProperty('labsNexusUser')) {
-					credentials {
-						username = labsNexusUser
-						password = labsNexusPassword
-					}
-				}
-			}
-		}
-	}
 }
 
 test {
@@ -181,10 +97,22 @@ test {
     }
 }
 
-//tasks.withType(JavaExec) {
-//    // Assign all Java system properties from
-//    // the command line to the JavaExec task.
-//    systemProperties System.properties
-//}
+shadowJar {
+	// archiveFileName = "${baseName}-${version}.mpl"
+}
+
+tasks.register('moveToPlugin') {
+	doLast {
+		ant.move file: "${buildDir}/libs/${project.name}-${version}-all.jar",
+				todir: "../morpheus-plugins"
+	}
+}
+
+// Runs assemble and copyToMorpheus
+tasks.register('publishToMorpheus') {
+	dependsOn tasks.shadowJar
+	dependsOn 'moveToPlugin'
+	tasks.findByName('moveToPlugin').mustRunAfter 'shadowJar'
+}
 
 tasks.assemble.dependsOn tasks.shadowJar
